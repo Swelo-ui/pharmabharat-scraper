@@ -82,32 +82,6 @@ def backfill_contacts():
         pass
 
 
-IMG_MARKDOWN_RE = re.compile(r"!\[.*?\]\((https?://[^\s\)]+)\)")
-
-
-def backfill_banners():
-    """Extract banner_url from description_md for existing jobs missing banner_url."""
-    try:
-        with get_conn() as conn:
-            rows = conn.execute(
-                "SELECT slug, description_md FROM jobs WHERE (banner_url IS NULL OR banner_url = '') AND description_md IS NOT NULL"
-            ).fetchall()
-            for r in rows:
-                md_text = r["description_md"]
-                if not md_text:
-                    continue
-                match = IMG_MARKDOWN_RE.search(md_text)
-                if match:
-                    img_url = match.group(1).strip()
-                    if not any(x in img_url.lower() for x in ["logo", "favicon", "avatar", "icon", "default"]):
-                        conn.execute(
-                            "UPDATE jobs SET banner_url = ? WHERE slug = ?",
-                            (img_url, r["slug"])
-                        )
-    except Exception:
-        pass
-
-
 def init_db():
     with get_conn() as conn:
         conn.execute("PRAGMA journal_mode=WAL")
@@ -131,9 +105,8 @@ def init_db():
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_active_cat_fresher ON jobs(is_active, category, is_fresher_friendly)"
         )
-    # Auto-extract email/phone and banner images for existing jobs
+    # Auto-extract email/phone for existing jobs
     backfill_contacts()
-    backfill_banners()
 
 
 def upsert_job(job: dict) -> bool:

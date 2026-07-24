@@ -42,35 +42,31 @@ log = logging.getLogger("scraper")
 
 BASE_URL = "https://pharmabharat.com"
 
+# List of realistic Browser User-Agents for rotation
 USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:127.0) Gecko/20100101 Firefox/127.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0"
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0",
+    "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1",
 ]
 
 
-def get_stealth_headers():
-    ua = random.choice(USER_AGENTS)
+def get_random_headers():
     return {
-        "User-Agent": ua,
+        "User-Agent": random.choice(USER_AGENTS),
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
         "Accept-Language": "en-IN,en-US;q=0.9,en;q=0.8",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Sec-Ch-Ua": '"Not/A)Brand";v="8", "Chromium";v="126", "Google Chrome";v="126"',
-        "Sec-Ch-Ua-Mobile": "?0",
-        "Sec-Ch-Ua-Platform": '"Windows"',
+        "DNT": "1",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
         "Sec-Fetch-Dest": "document",
         "Sec-Fetch-Mode": "navigate",
         "Sec-Fetch-Site": "none",
         "Sec-Fetch-User": "?1",
-        "Upgrade-Insecure-Requests": "1",
-        "Cache-Control": "max-age=0",
     }
 
-
-# Category slugs taken from the site's own nav menu.
+# Category slugs taken from the site's own nav menu. Add/remove as needed.
 CATEGORY_SLUGS = [
     "internships",
     "clinical-data-management-jobs",
@@ -93,6 +89,7 @@ CATEGORY_SLUGS = [
     "medical-reviewer",
     "heor-rwe",
     "scientific-writer-jobs",
+    # "college-faculty-jobs",  # returns 404 - removed
 ]
 
 from datetime import datetime, timedelta
@@ -106,13 +103,15 @@ DATE_RE = re.compile(r"\b[A-Z][a-z]+ \d{1,2},? \d{4}\b")
 EXPERIENCE_RE = re.compile(
     r"(?i)\b(freshers?|\d+\s*[-–—]\s*\d+\+?\s*years?|\d+\+?\s*years?)\b"
 )
+# Tightened: must have digit + unit (LPA / per month / lakhs / /-) OR a number >= 4 digits
 SALARY_RE = re.compile(
     r"(₹|Rs\.?|INR)\s*[\d,.\s\-–—]+(?:LPA|per\s*month|/-|lakhs?|pa|p\.a\.?)",
     re.I
 )
 EMAIL_RE = re.compile(r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b")
-PHONE_RE = re.compile(r"(?:\+?91[\-\s]?)?[6-9]\d{4}[\-\s]?\d{5}\b|(?:\+?91[\-\s]?)?[6-9]\d{9}\b|0\d{2,4}[\-\s]?\d{6,8}\b")
+PHONE_RE = re.compile(r"(?:\+91[\-\s]?)?[6-9]\d{4}[\-\s]?\d{5}\b|\b[6-9]\d{9}\b")
 
+# Known Indian cities / pharma hub locations for listing-page extraction
 LOCATION_KEYWORDS = {
     "mumbai", "pune", "hyderabad", "bangalore", "bengaluru", "chennai",
     "delhi", "new delhi", "noida", "gurgaon", "gurugram", "ahmedabad",
@@ -123,12 +122,15 @@ LOCATION_KEYWORDS = {
     "multiple locations", "india",
 }
 
+# Patterns that clearly indicate NOT a company name
 _NOT_COMPANY_RE = re.compile(
     r"(?i)^(freshers?|\d[\d\s\-–—+]*years?|apply|walk[\-\s]?in|online|email|"
     r"verified|immediate|urgent|[A-Z][a-z]+ \d{1,2},? \d{4}|₹|Rs|INR)",
     re.I
 )
 
+# Note: "verified" is NOT in this noise list on purpose -- we need to see that
+# text in the line-matching loop below to detect the Verified badge.
 NOISE_WORDS = {"apply now", "ad", "advertisement"}
 
 
@@ -157,22 +159,22 @@ def is_date_expired(date_str, is_walkin=False):
 
 
 def _sleep(base_delay):
-    # Human-like Gaussian jitter delay (random 0.8s to 2.2s variation)
-    time.sleep(base_delay + random.uniform(0.8, 2.2))
+    # thoda randomness taaki request pattern robotic na lage
+    time.sleep(base_delay + random.uniform(0.3, 1.2))
 
 
-def fetch(url, retries=3, delay=1.8):
+def fetch(url, retries=3, delay=1.5):
     for attempt in range(1, retries + 1):
         try:
-            resp = _session.get(url, headers=get_stealth_headers(), timeout=15)
+            resp = requests.get(url, headers=get_random_headers(), timeout=15)
             if resp.status_code == 200:
                 return resp.text
             log.warning("Status %s for %s (attempt %s)", resp.status_code, url, attempt)
-            if resp.status_code in (404, 410):
-                return None  # Don't retry 404/410
+            if resp.status_code == 404:
+                return None  # Don't retry 404s
         except requests.RequestException as e:
             log.warning("Error fetching %s: %s (attempt %s)", url, e, attempt)
-        time.sleep(delay + random.uniform(0.5, 1.5))
+        time.sleep(delay * attempt + random.uniform(0.2, 0.8))
     return None
 
 
@@ -359,29 +361,26 @@ def parse_detail_page(html):
 
     # Extract Job Banner Image (Flyers, Walk-In interview posters, Recruitment banners)
     banner_url = None
-    # 1. Search container for uploaded flyer/poster images
-    if container:
-        for img in container.find_all("img"):
-            src = img.get("src") or img.get("data-src") or img.get("data-lazy-src")
-            if src and "wp-content/uploads" in src and not any(x in src.lower() for x in ["logo", "favicon", "avatar", "icon", "placeholder"]):
-                banner_url = src.strip()
-                break
+    og_img = soup.find("meta", property="og:image") or soup.find("meta", attrs={"name": "og:image"})
+    if og_img and og_img.get("content"):
+        c_url = og_img["content"].strip()
+        if c_url and not any(x in c_url.lower() for x in ["logo", "favicon", "default-avatar", "placeholder"]):
+            banner_url = c_url
 
-    # 2. Check og:image meta tag
-    if not banner_url:
-        og_img = soup.find("meta", property="og:image") or soup.find("meta", attrs={"name": "og:image"})
-        if og_img and og_img.get("content"):
-            c_url = og_img["content"].strip()
-            if c_url and not any(x in c_url.lower() for x in ["logo", "favicon", "avatar", "icon", "default"]):
-                banner_url = c_url
-
-    # 3. Fallback to any valid <img> tag in container
     if not banner_url and container:
         for img in container.find_all("img"):
-            src = img.get("src") or img.get("data-src")
-            if src and src.startswith("http") and not any(x in src.lower() for x in ["logo", "favicon", "avatar", "icon"]):
-                banner_url = src.strip()
-                break
+            src_val = (
+                img.get("data-full-url") or
+                img.get("data-orig-file") or
+                img.get("data-lazy-src") or
+                img.get("data-src") or
+                img.get("src")
+            )
+            if src_val:
+                src_val = src_val.strip()
+                if not any(x in src_val.lower() for x in ["logo", "favicon", "placeholder", "data:image"]):
+                    banner_url = src_val
+                    break
 
     # REMOVE ALL AD ELEMENTS, IFRAMES, AND SCRIPT BLOCKS BEFORE CONVERTING TO MARKDOWN
     ad_selectors = [
