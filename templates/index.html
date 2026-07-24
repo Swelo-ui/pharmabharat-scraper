@@ -1119,8 +1119,9 @@
         <button class="btn-live-scrape" id="trigger-scrape-btn" title="Sync Latest Jobs from PharmaBharat">
           <i data-lucide="zap" style="width:16px;height:16px;"></i> <span id="scrape-btn-text">Sync Jobs</span>
         </button>
-        <button class="btn-icon" id="export-csv-btn" title="Export CSV Data">
-          <i data-lucide="download" style="width:18px;height:18px;"></i>
+        <button class="btn-icon" id="notification-bell-btn" title="Recent Job Notifications" style="position:relative;">
+          <i data-lucide="bell" style="width:18px;height:18px;"></i>
+          <span class="bell-dot" id="bell-dot" style="display:none;"></span>
         </button>
         <button class="btn-icon" id="theme-toggle" title="Toggle Theme Mode">
           <i data-lucide="moon" id="theme-icon" style="width:18px;height:18px;"></i>
@@ -1176,7 +1177,7 @@
     </div>
   </div>
 
-  <!-- Row 2: Category Trigger Button + Location & Sort Dropdowns -->
+  <!-- Row 2: Category, Location & Sort Trigger Buttons (Lucide Icons, No raw emojis) -->
   <div class="selects-wrapper">
     <button class="select-btn" id="open-category-modal">
       <span class="btn-left">
@@ -1186,25 +1187,31 @@
       <i data-lucide="chevron-down" style="width:16px;height:16px;color:var(--ink-muted);"></i>
     </button>
 
-    <!-- Hidden native select for fallback logic -->
-    <select id="category-select" style="display:none;">
-      <option value="">All Categories</option>
-    </select>
+    <button class="select-btn" id="open-location-modal">
+      <span class="btn-left">
+        <i data-lucide="map-pin" style="width:16px;height:16px;color:var(--primary);"></i>
+        <span id="selected-location-text">All Locations</span>
+      </span>
+      <i data-lucide="chevron-down" style="width:16px;height:16px;color:var(--ink-muted);"></i>
+    </button>
 
-    <select class="select-chip" id="location-select">
-      <option value="">📍 All Locations</option>
-    </select>
+    <button class="select-btn" id="open-sort-modal">
+      <span class="btn-left">
+        <i data-lucide="arrow-down-up" style="width:16px;height:16px;color:var(--primary);"></i>
+        <span id="selected-sort-text">Newest First</span>
+      </span>
+      <i data-lucide="chevron-down" style="width:16px;height:16px;color:var(--ink-muted);"></i>
+    </button>
 
-    <select class="select-chip" id="sort-select">
-      <option value="newest">⚡ Newest First</option>
-      <option value="oldest">⏳ Oldest First</option>
-      <option value="title">🔤 Title (A-Z)</option>
-    </select>
+    <!-- Hidden native selects for state tracking -->
+    <select id="category-select" style="display:none;"><option value="">All Categories</option></select>
+    <select id="location-select" style="display:none;"><option value="">All Locations</option></select>
+    <select id="sort-select" style="display:none;"><option value="newest">Newest First</option></select>
   </div>
   
-  <div style="margin-top: 6px; text-align: right;">
-    <button class="btn-reset-filters" id="reset-filters-btn">✕ Reset Filters</button>
-  </div>
+  <button class="btn-reset-filters" id="reset-filters-btn">
+    <i data-lucide="rotate-ccw" style="width:14px;height:14px;"></i> Reset All Active Filters
+  </button>
 </div>
 
 <!-- Main Job Feed -->
@@ -1267,24 +1274,68 @@
   </div>
 </div>
 
-<!-- Category Picker Bottom Sheet Modal (Lucide Icons for every category) -->
-<div class="modal-overlay" id="category-modal">
+<!-- Location Picker Bottom Sheet Modal -->
+<div class="modal-overlay" id="location-modal">
   <div class="modal-card category-sheet">
     <div class="modal-header">
       <div style="font-weight:700;font-size:1.05rem;display:flex;align-items:center;gap:8px;color:var(--ink);">
-        <i data-lucide="layout-grid" style="width:20px;height:20px;color:var(--primary);"></i>
-        Select Job Category
+        <i data-lucide="map-pin" style="width:20px;height:20px;color:var(--primary);"></i>
+        Filter by Location
       </div>
-      <button class="btn-icon" id="close-category-modal">
+      <button class="btn-icon" id="close-location-modal">
         <i data-lucide="x" style="width:18px;height:18px;"></i>
       </button>
     </div>
-    <div class="category-list" id="category-list-items"></div>
+    <div class="category-list" id="location-list-items"></div>
   </div>
 </div>
 
-<!-- Toast Notification Element -->
-<div class="toast" id="toast" style="display:none;"></div>
+<!-- Sort Picker Bottom Sheet Modal -->
+<div class="modal-overlay" id="sort-modal">
+  <div class="modal-card category-sheet">
+    <div class="modal-header">
+      <div style="font-weight:700;font-size:1.05rem;display:flex;align-items:center;gap:8px;color:var(--ink);">
+        <i data-lucide="arrow-down-up" style="width:20px;height:20px;color:var(--primary);"></i>
+        Sort Feed Order
+      </div>
+      <button class="btn-icon" id="close-sort-modal">
+        <i data-lucide="x" style="width:18px;height:18px;"></i>
+      </button>
+    </div>
+    <div class="category-list" id="sort-list-items">
+      <div class="category-item active" onclick="selectSort('newest', '⚡ Newest First')">
+        <div class="cat-left"><i data-lucide="zap" style="width:18px;height:18px;color:var(--amber);"></i><span>Newest First</span></div>
+        <i data-lucide="check" style="width:16px;height:16px;color:var(--primary);"></i>
+      </div>
+      <div class="category-item" onclick="selectSort('oldest', '⏳ Oldest First')">
+        <div class="cat-left"><i data-lucide="clock" style="width:18px;height:18px;color:var(--ink-muted);"></i><span>Oldest First</span></div>
+      </div>
+      <div class="category-item" onclick="selectSort('title', '🔤 Title (A-Z)')">
+        <div class="cat-left"><i data-lucide="type" style="width:18px;height:18px;color:var(--primary);"></i><span>Title (A-Z)</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Professional Notification Panel / Drawer -->
+<div class="modal-overlay" id="notification-panel-modal">
+  <div class="modal-card category-sheet">
+    <div class="modal-header">
+      <div style="font-weight:700;font-size:1.05rem;display:flex;align-items:center;gap:8px;color:var(--ink);">
+        <i data-lucide="bell" style="width:20px;height:20px;color:var(--primary);"></i>
+        Recent Job Alerts & Updates
+      </div>
+      <button class="btn-icon" id="close-notification-modal">
+        <i data-lucide="x" style="width:18px;height:18px;"></i>
+      </button>
+    </div>
+    <div class="category-list" id="notification-list-items">
+      <div style="text-align:center;padding:24px;color:var(--ink-muted);font-size:0.85rem;">
+        No new job notifications right now.
+      </div>
+    </div>
+  </div>
+</div>
 
 <script>
 // Configure marked parser options
@@ -1513,14 +1564,21 @@ function loadDropdowns() {
   fetch("/api/locations")
     .then(r => r.json())
     .then(locs => {
-      const sel = document.getElementById("location-select");
-      locs.forEach(l => {
-        if (!l) return;
-        const opt = document.createElement("option");
-        opt.value = l;
-        opt.textContent = l;
-        sel.appendChild(opt);
-      });
+      const container = document.getElementById("location-list-items");
+      const list = [{ slug: "", name: "All Locations" }];
+      locs.forEach(l => { if (l) list.push({ slug: l, name: l }); });
+
+      container.innerHTML = list.map(item => `
+        <div class="category-item ${state.location === item.slug ? 'active' : ''}" onclick="selectLocation('${item.slug.replace(/'/g,"\\'")}', '${item.name.replace(/'/g,"\\'")}')">
+          <div class="cat-left">
+            <i data-lucide="map-pin" style="width:18px;height:18px;color:var(--primary);"></i>
+            <span>${item.name}</span>
+          </div>
+          ${state.location === item.slug ? '<i data-lucide="check" style="width:16px;height:16px;color:var(--primary);"></i>' : ''}
+        </div>
+      `).join("");
+
+      if (window.lucide) lucide.createIcons();
     });
 }
 
@@ -1529,7 +1587,32 @@ function selectCategory(slug, name) {
   state.page = 1;
   document.getElementById("selected-category-text").textContent = name;
   document.getElementById("category-modal").classList.remove("open");
-  loadDropdowns(); // refresh active highlight
+  loadDropdowns();
+  fetchJobs();
+}
+
+function selectLocation(slug, name) {
+  state.location = slug;
+  state.page = 1;
+  document.getElementById("selected-location-text").textContent = name;
+  document.getElementById("location-modal").classList.remove("open");
+  loadDropdowns();
+  fetchJobs();
+}
+
+function selectSort(slug, name) {
+  state.sort_by = slug;
+  state.page = 1;
+  document.getElementById("selected-sort-text").textContent = name;
+  document.getElementById("sort-modal").classList.remove("open");
+  
+  // Refresh active checkmark in sort modal
+  const container = document.getElementById("sort-list-items");
+  container.querySelectorAll(".category-item").forEach(el => {
+    const isSel = el.getAttribute("onclick").includes(slug);
+    el.classList.toggle("active", isSel);
+  });
+
   fetchJobs();
 }
 
@@ -1572,6 +1655,26 @@ function renderJobs(data) {
   // Check if any filters are active to toggle Reset button
   const isFiltered = state.fresher_only || state.verified_only || state.saved_only || state.category || state.location || state.q;
   document.getElementById("reset-filters-btn").style.display = isFiltered ? "inline-flex" : "none";
+
+  // Populate Recent Notification Panel list
+  if (data.jobs && data.jobs.length > 0) {
+    const recent = data.jobs.slice(0, 10);
+    document.getElementById("notification-list-items").innerHTML = recent.map(j => `
+      <div class="category-item" onclick="openJobModal('${j.slug}'); document.getElementById('notification-panel-modal').classList.remove('open');">
+        <div class="cat-left" style="min-width:0;">
+          <div style="width:34px;height:34px;border-radius:8px;background:var(--primary-light);color:var(--primary-deep);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.88rem;flex-shrink:0;">
+            ${getCompanyInitial(j.company)}
+          </div>
+          <div style="display:flex;flex-direction:column;min-width:0;">
+            <span style="font-size:0.85rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink);">${j.title}</span>
+            <span style="font-size:0.72rem;color:var(--ink-muted);">${j.company || 'Pharma Bharat'} · ${j.posted_date_raw || 'Recent'}</span>
+          </div>
+        </div>
+        <i data-lucide="chevron-right" style="width:14px;height:14px;color:var(--ink-soft);flex-shrink:0;"></i>
+      </div>
+    `).join("");
+    if (window.lucide) lucide.createIcons();
+  }
 
   if (jobs.length === 0) {
     container.innerHTML = `
@@ -1766,6 +1869,31 @@ document.getElementById("open-category-modal").addEventListener("click", () => {
 
 document.getElementById("close-category-modal").addEventListener("click", () => {
   document.getElementById("category-modal").classList.remove("open");
+});
+
+document.getElementById("open-location-modal").addEventListener("click", () => {
+  document.getElementById("location-modal").classList.add("open");
+});
+
+document.getElementById("close-location-modal").addEventListener("click", () => {
+  document.getElementById("location-modal").classList.remove("open");
+});
+
+document.getElementById("open-sort-modal").addEventListener("click", () => {
+  document.getElementById("sort-modal").classList.add("open");
+});
+
+document.getElementById("close-sort-modal").addEventListener("click", () => {
+  document.getElementById("sort-modal").classList.remove("open");
+});
+
+document.getElementById("notification-bell-btn").addEventListener("click", () => {
+  document.getElementById("bell-dot").style.display = "none";
+  document.getElementById("notification-panel-modal").classList.add("open");
+});
+
+document.getElementById("close-notification-modal").addEventListener("click", () => {
+  document.getElementById("notification-panel-modal").classList.remove("open");
 });
 
 document.getElementById("modal-share-btn").addEventListener("click", () => {
