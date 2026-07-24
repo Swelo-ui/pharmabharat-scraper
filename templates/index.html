@@ -1315,7 +1315,10 @@
 
     <div class="modal-footer">
       <div id="modal-date" style="font-size: 0.75rem; color: var(--ink-soft); font-family: 'JetBrains Mono', monospace;">Posted Recently</div>
-      <div style="display: flex; gap: 8px;">
+      <div style="display: flex; gap: 6px;">
+        <button class="btn-action btn-bookmark" id="modal-save-btn">
+          <i data-lucide="bookmark" style="width:14px;height:14px;"></i> Save
+        </button>
         <button class="btn-action" id="modal-share-btn">
           <i data-lucide="share-2" style="width:14px;height:14px;"></i> Share
         </button>
@@ -1483,13 +1486,36 @@ function fallbackShare(text, url) {
   }
 }
 
+// LocalStorage Bookmarking (Save Jobs)
+function toggleSave(slug, e) {
+  if (e) e.stopPropagation();
+  if (!slug) return;
+  const idx = state.savedSlugs.indexOf(slug);
+  if (idx > -1) {
+    state.savedSlugs.splice(idx, 1);
+  } else {
+    state.savedSlugs.push(slug);
+  }
+  try {
+    localStorage.setItem("pb_saved_jobs", JSON.stringify(state.savedSlugs));
+  } catch (err) {}
+  updateSavedCount();
+  if (state.saved_only) {
+    fetchJobs();
+  } else {
+    updateCardBookmarkButtons();
+  }
+}
+
 function updateSavedCount() {
-  document.getElementById("saved-count").textContent = state.savedSlugs.length;
+  const el = document.getElementById("saved-count");
+  if (el) el.textContent = state.savedSlugs.length;
 }
 
 function updateCardBookmarkButtons() {
   document.querySelectorAll(".btn-bookmark").forEach(btn => {
     const slug = btn.dataset.slug;
+    if (!slug) return;
     const isSaved = state.savedSlugs.includes(slug);
     btn.classList.toggle("saved", isSaved);
     btn.innerHTML = isSaved ? '<i data-lucide="bookmark-check" style="width:14px;height:14px;"></i> Saved' : '<i data-lucide="bookmark" style="width:14px;height:14px;"></i> Save';
