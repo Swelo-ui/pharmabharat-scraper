@@ -1972,8 +1972,16 @@ function shareJob(title, url, e) {
   }
 }
 
+// Control Native Android SwipeRefreshLayout (Disables pull-to-refresh when modals are open)
+function setNativeSwipeRefresh(enabled) {
+  if (window.AndroidNative && window.AndroidNative.setSwipeRefreshEnabled) {
+    window.AndroidNative.setSwipeRefreshEnabled(enabled);
+  }
+}
+
 // Open Job Detail Modal with tabbed Overview + Full Description
 function openJobModal(slug) {
+  setNativeSwipeRefresh(false);
   const modal = document.getElementById("job-modal");
   // Reset to overview tab
   switchModalTab('overview');
@@ -2043,30 +2051,37 @@ function openJobModal(slug) {
 
 document.getElementById("close-modal-btn").addEventListener("click", () => {
   document.getElementById("job-modal").classList.remove("open");
+  setNativeSwipeRefresh(true);
 });
 
 document.getElementById("open-category-modal").addEventListener("click", () => {
+  setNativeSwipeRefresh(false);
   document.getElementById("category-modal").classList.add("open");
 });
 
 document.getElementById("close-category-modal").addEventListener("click", () => {
   document.getElementById("category-modal").classList.remove("open");
+  setNativeSwipeRefresh(true);
 });
 
 document.getElementById("open-location-modal").addEventListener("click", () => {
+  setNativeSwipeRefresh(false);
   document.getElementById("location-modal").classList.add("open");
 });
 
 document.getElementById("close-location-modal").addEventListener("click", () => {
   document.getElementById("location-modal").classList.remove("open");
+  setNativeSwipeRefresh(true);
 });
 
 document.getElementById("open-sort-modal").addEventListener("click", () => {
+  setNativeSwipeRefresh(false);
   document.getElementById("sort-modal").classList.add("open");
 });
 
 document.getElementById("close-sort-modal").addEventListener("click", () => {
   document.getElementById("sort-modal").classList.remove("open");
+  setNativeSwipeRefresh(true);
 });
 
 document.getElementById("modal-share-btn").addEventListener("click", () => {
@@ -2276,10 +2291,16 @@ liveScrapeBtn.addEventListener("click", () => {
 // Auto-refresh stats every 60 seconds
 setInterval(fetchStats, 60000);
 
-// Close modal on overlay click
-document.getElementById("job-modal").addEventListener("click", (e) => {
-  if (e.target === document.getElementById("job-modal")) {
-    document.getElementById("job-modal").classList.remove("open");
+// Close modals on overlay click
+["job-modal", "category-modal", "location-modal", "sort-modal"].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener("click", (e) => {
+      if (e.target === el) {
+        el.classList.remove("open");
+        setNativeSwipeRefresh(true);
+      }
+    });
   }
 });
 
