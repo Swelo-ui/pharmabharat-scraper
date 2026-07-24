@@ -346,36 +346,38 @@
     padding: 4px;
   }
 
-  /* Horizontal Filter Chips Bar */
+  /* No-Swipe 4-Column Segmented Tab Bar */
   .chips-wrapper {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    padding-bottom: 4px;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-    align-items: center;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
     width: 100%;
-    -webkit-overflow-scrolling: touch;
+    align-items: center;
   }
-  .chips-wrapper::-webkit-scrollbar { display: none; }
 
   .chip {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    height: 36px;
-    padding: 0 12px;
-    border-radius: 20px;
+    justify-content: center;
+    gap: 4px;
+    height: 38px;
+    padding: 0 4px;
+    border-radius: 10px;
     border: 1px solid var(--border);
     background: var(--surface);
     color: var(--ink-muted);
-    font-size: 0.8rem;
+    font-size: 0.76rem;
     font-weight: 600;
     white-space: nowrap;
     cursor: pointer;
     user-select: none;
-    transition: all 0.2s ease;
+    transition: background 0.15s ease, border-color 0.15s ease;
+    touch-action: manipulation;
+  }
+
+  .chip i {
+    width: 13px !important;
+    height: 13px !important;
     flex-shrink: 0;
   }
 
@@ -383,7 +385,7 @@
     background: var(--primary);
     color: #FFFFFF;
     border-color: var(--primary);
-    box-shadow: 0 2px 8px var(--primary-glow);
+    box-shadow: 0 2px 6px var(--primary-glow);
   }
 
   .chip.active-fresher {
@@ -407,35 +409,54 @@
   /* Responsive Select Dropdowns Grid */
   .selects-wrapper {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: 8px;
-    margin-top: 10px;
+    margin-top: 8px;
     width: 100%;
   }
 
-  @media (max-width: 640px) {
-    .selects-wrapper {
-      grid-template-columns: 1fr 1fr;
-    }
-    #category-select {
-      grid-column: span 2;
-    }
+  #open-category-modal {
+    grid-column: span 2;
   }
 
-  @media (max-width: 380px) {
-    .selects-wrapper {
-      grid-template-columns: 1fr;
-    }
-    #category-select {
-      grid-column: span 1;
-    }
+  .select-btn {
+    height: 42px;
+    padding: 0 14px;
+    border-radius: 12px;
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 0.85rem;
+    font-weight: 600;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    width: 100%;
+    box-shadow: var(--shadow-sm);
+    transition: border-color 0.18s ease;
+    touch-action: manipulation;
+  }
+
+  .select-btn .btn-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .select-btn #selected-category-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .select-chip {
-    height: 40px;
-    padding: 0 12px;
+    height: 42px;
+    padding: 0 10px;
     border-radius: 12px;
-    border: 1px solid var(--border);
+    border: 1.5px solid var(--border);
     background: var(--surface);
     color: var(--ink);
     font-size: 0.82rem;
@@ -446,6 +467,49 @@
     width: 100%;
     box-shadow: var(--shadow-sm);
     text-overflow: ellipsis;
+    touch-action: manipulation;
+  }
+
+  /* Category Sheet Modal */
+  .category-sheet {
+    max-height: 80vh !important;
+  }
+
+  .category-list {
+    padding: 12px 16px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow-y: auto;
+    max-height: 65vh;
+  }
+
+  .category-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--ink);
+    font-weight: 600;
+    font-size: 0.88rem;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+    touch-action: manipulation;
+  }
+
+  .category-item:hover, .category-item.active {
+    background: var(--primary-light);
+    border-color: var(--primary);
+    color: var(--primary-deep);
+  }
+
+  .category-item .cat-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
 
   /* Reset Button */
@@ -1095,27 +1159,35 @@
     </button>
   </div>
 
-  <!-- Row 1: Quick Filter Chips (Horizontal Scrollable Pill Bar) -->
+  <!-- Row 1: Quick Filter Chips (No-Swipe 4-Column Segmented Tab Bar) -->
   <div class="chips-wrapper">
     <div class="chip active" id="chip-all">
-      <i data-lucide="layers" style="width:14px;height:14px;"></i> All Jobs
+      <i data-lucide="layers"></i> <span class="chip-text">All</span>
     </div>
     <div class="chip" id="chip-fresher">
-      <i data-lucide="sparkles" style="width:14px;height:14px;color:var(--fresher);"></i> Fresher Only
+      <i data-lucide="sparkles" style="color:var(--fresher);"></i> <span class="chip-text">Fresher</span>
     </div>
     <div class="chip" id="chip-verified">
-      <i data-lucide="shield-check" style="width:14px;height:14px;color:var(--verified);"></i> Verified
+      <i data-lucide="shield-check" style="color:var(--verified);"></i> <span class="chip-text">Verified</span>
     </div>
     <div class="chip" id="chip-saved">
-      <i data-lucide="bookmark" style="width:14px;height:14px;color:var(--amber);"></i> Saved (<span id="saved-count">0</span>)
+      <i data-lucide="bookmark" style="color:var(--amber);"></i> <span class="chip-text">Saved (<span id="saved-count">0</span>)</span>
     </div>
-    <button class="btn-reset-filters" id="reset-filters-btn">✕ Reset</button>
   </div>
 
-  <!-- Row 2: Category, Location & Sort Dropdowns (Clean Grid on Mobile) -->
+  <!-- Row 2: Category Trigger Button + Location & Sort Dropdowns -->
   <div class="selects-wrapper">
-    <select class="select-chip" id="category-select">
-      <option value="">📁 All Categories</option>
+    <button class="select-btn" id="open-category-modal">
+      <span class="btn-left">
+        <i data-lucide="layout-grid" style="width:16px;height:16px;color:var(--primary);"></i>
+        <span id="selected-category-text">All Categories</span>
+      </span>
+      <i data-lucide="chevron-down" style="width:16px;height:16px;color:var(--ink-muted);"></i>
+    </button>
+
+    <!-- Hidden native select for fallback logic -->
+    <select id="category-select" style="display:none;">
+      <option value="">All Categories</option>
     </select>
 
     <select class="select-chip" id="location-select">
@@ -1127,6 +1199,10 @@
       <option value="oldest">⏳ Oldest First</option>
       <option value="title">🔤 Title (A-Z)</option>
     </select>
+  </div>
+  
+  <div style="margin-top: 6px; text-align: right;">
+    <button class="btn-reset-filters" id="reset-filters-btn">✕ Reset Filters</button>
   </div>
 </div>
 
@@ -1190,8 +1266,24 @@
   </div>
 </div>
 
-<!-- Toast Notification -->
-<div class="toast" id="toast">Notification message</div>
+<!-- Category Picker Bottom Sheet Modal (Lucide Icons for every category) -->
+<div class="modal-overlay" id="category-modal">
+  <div class="modal-card category-sheet">
+    <div class="modal-header">
+      <div style="font-weight:700;font-size:1.05rem;display:flex;align-items:center;gap:8px;color:var(--ink);">
+        <i data-lucide="layout-grid" style="width:20px;height:20px;color:var(--primary);"></i>
+        Select Job Category
+      </div>
+      <button class="btn-icon" id="close-category-modal">
+        <i data-lucide="x" style="width:18px;height:18px;"></i>
+      </button>
+    </div>
+    <div class="category-list" id="category-list-items"></div>
+  </div>
+</div>
+
+<!-- Toast Notification Element -->
+<div class="toast" id="toast" style="display:none;"></div>
 
 <script>
 // Configure marked parser options
@@ -1345,18 +1437,61 @@ function fetchStats() {
     .catch(() => {});
 }
 
+// Category Lucide Icon Mapper
+const CATEGORY_LUCIDE_ICONS = {
+  "all": "layout-grid",
+  "qa": "shield-check",
+  "qc": "flask-conical",
+  "quality": "shield-check",
+  "production": "factory",
+  "manufacturing": "factory",
+  "r-d": "microscope",
+  "research": "microscope",
+  "regulatory": "file-check",
+  "medical": "stethoscope",
+  "clinical": "activity",
+  "intern": "graduation-cap",
+  "fresher": "sparkles",
+  "pharmacist": "pill",
+  "pharmacy": "pill",
+  "sales": "trending-up",
+  "marketing": "megaphone"
+};
+
+function getCategoryIcon(catSlug) {
+  if (!catSlug) return "layout-grid";
+  const slug = catSlug.toLowerCase();
+  for (const [k, icon] of Object.entries(CATEGORY_LUCIDE_ICONS)) {
+    if (slug.includes(k)) return icon;
+  }
+  return "briefcase";
+}
+
 // Load Categories & Locations
 function loadDropdowns() {
   fetch("/api/categories")
     .then(r => r.json())
     .then(cats => {
-      const sel = document.getElementById("category-select");
+      const container = document.getElementById("category-list-items");
+      const list = [{ slug: "", name: "All Categories", icon: "layout-grid" }];
+      
       cats.forEach(c => {
-        const opt = document.createElement("option");
-        opt.value = c;
-        opt.textContent = c.replace(/-/g, " ").replace(/\b\w/g, ch => ch.toUpperCase());
-        sel.appendChild(opt);
+        const name = c.replace(/-/g, " ").replace(/\b\w/g, ch => ch.toUpperCase());
+        const icon = getCategoryIcon(c);
+        list.push({ slug: c, name: name, icon: icon });
       });
+
+      container.innerHTML = list.map(item => `
+        <div class="category-item ${state.category === item.slug ? 'active' : ''}" onclick="selectCategory('${item.slug}', '${item.name.replace(/'/g,"\\'")}')">
+          <div class="cat-left">
+            <i data-lucide="${item.icon}" style="width:18px;height:18px;color:var(--primary);"></i>
+            <span>${item.name}</span>
+          </div>
+          <i data-lucide="chevron-right" style="width:14px;height:14px;color:var(--ink-soft);"></i>
+        </div>
+      `).join("");
+
+      if (window.lucide) lucide.createIcons();
     });
 
   fetch("/api/locations")
@@ -1371,6 +1506,15 @@ function loadDropdowns() {
         sel.appendChild(opt);
       });
     });
+}
+
+function selectCategory(slug, name) {
+  state.category = slug;
+  state.page = 1;
+  document.getElementById("selected-category-text").textContent = name;
+  document.getElementById("category-modal").classList.remove("open");
+  loadDropdowns(); // refresh active highlight
+  fetchJobs();
 }
 
 // Skeleton loader helper
@@ -1598,6 +1742,14 @@ function openJobModal(slug) {
 
 document.getElementById("close-modal-btn").addEventListener("click", () => {
   document.getElementById("job-modal").classList.remove("open");
+});
+
+document.getElementById("open-category-modal").addEventListener("click", () => {
+  document.getElementById("category-modal").classList.add("open");
+});
+
+document.getElementById("close-category-modal").addEventListener("click", () => {
+  document.getElementById("category-modal").classList.remove("open");
 });
 
 document.getElementById("modal-share-btn").addEventListener("click", () => {
