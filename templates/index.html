@@ -2102,14 +2102,23 @@ document.getElementById("job-modal").addEventListener("click", (e) => {
   }
 });
 
-// Initialize
-document.addEventListener("DOMContentLoaded", () => {
+// Bulletproof Initialization Helper
+function initApp() {
   if (window.lucide) lucide.createIcons();
   updateSavedCount();
   fetchStats();
   loadDropdowns();
   fetchJobs();
-});
+}
+
+if (document.readyState === "complete" || document.readyState === "interactive") {
+  initApp();
+} else {
+  document.addEventListener("DOMContentLoaded", initApp);
+}
+// Immediate fallback trigger
+fetchJobs();
+fetchStats();
 </script>
 
 </body>
