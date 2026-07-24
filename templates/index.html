@@ -961,19 +961,18 @@
 
   .pager-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  /* Job Detail Modal / Bottom Sheet */
+  /* Job Detail Modal / Bottom Sheet (Solid Overlay for 60fps GPU acceleration) */
   .modal-overlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(15, 23, 42, 0.6);
-    backdrop-filter: blur(4px);
+    background: rgba(15, 23, 42, 0.68);
     z-index: 1000;
     display: flex;
     justify-content: center;
     align-items: flex-end;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.25s ease;
+    transition: opacity 0.2s ease;
   }
 
   @media (min-width: 640px) {
@@ -989,14 +988,16 @@
     background: var(--surface);
     width: 100%;
     max-width: 780px;
-    max-height: 88vh;
-    border-top-left-radius: var(--radius-lg);
-    border-top-right-radius: var(--radius-lg);
+    max-height: 85vh;
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
     transform: translateY(100%);
-    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: transform 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);
+    will-change: transform;
+    transform: translateZ(0);
     box-shadow: var(--shadow-lg);
   }
 
@@ -1337,20 +1338,35 @@ function showToast(msg) {
   console.log("[Status]:", msg);
 }
 
-// LocalStorage Bookmarking
-function toggleSave(slug, e) {
+// Universal Share Function (Supports Web Share API + Clipboard Copy + WhatsApp fallback)
+function shareJob(title, url, e) {
   if (e) e.stopPropagation();
-  const idx = state.savedSlugs.indexOf(slug);
-  if (idx > -1) {
-    state.savedSlugs.splice(idx, 1);
-    showToast("Job removed from saved list");
+  const cleanTitle = (title || "Pharma Job").replace(/'/g, "");
+  const fullMsg = `💊 PharmaBharat Job Alert:\n${cleanTitle}\n\nApply/View details here:\n${url}`;
+
+  if (navigator.share) {
+    navigator.share({
+      title: cleanTitle,
+      text: fullMsg,
+      url: url
+    }).catch(err => {
+      if (err.name !== 'AbortError') fallbackShare(fullMsg, url);
+    });
   } else {
-    state.savedSlugs.push(slug);
-    showToast("Job saved to bookmarks 🔖");
+    fallbackShare(fullMsg, url);
   }
-  localStorage.setItem("pb_saved_jobs", JSON.stringify(state.savedSlugs));
-  updateSavedCount();
-  if (state.saved_only) fetchJobs(); else updateCardBookmarkButtons();
+}
+
+function fallbackShare(text, url) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(() => {
+      alert("📋 Link Copied!\nJob link copied to clipboard. You can now paste and share it anywhere.");
+    }).catch(() => {
+      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, "_blank");
+    });
+  } else {
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, "_blank");
+  }
 }
 
 function updateSavedCount() {
@@ -1930,11 +1946,17 @@ liveScrapeBtn.addEventListener("click", () => {
               fetchStats();
               fetchJobs();
               if (st.error) {
-                showToast(`⚠ Sync error: ${st.error}`);
+                console.log(`⚠ Sync error: ${st.error}`);
               } else if (st.new_jobs > 0) {
-                showToast(`✅ ${st.new_jobs} new job${st.new_jobs > 1 ? 's' : ''} added!`);
-              } else {
-                showToast("✔ Feed is up to date!");
+                console.log(`✅ ${st.new_jobs} new jobs added!`);
+                // Trigger Native System Notification on Android Phone!
+                if (window.AndroidNative && window.AndroidNative.showNativeNotification) {
+                  window.AndroidNative.showNativeNotification(
+                    "💊 PharmaBharat Alert",
+                    `🔥 ${st.new_jobs} new fresher & pharma job openings available now!`,
+                    "https://pharmabharat-scraper.onrender.com"
+                  );
+                }
               }
             }
           })
