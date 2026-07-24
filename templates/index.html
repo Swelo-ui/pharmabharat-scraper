@@ -1789,16 +1789,7 @@ function fetchJobs() {
     });
 }
 
-// Share API / Copy Link
-function shareJob(title, url, e) {
-  if (e) e.stopPropagation();
-  if (navigator.share) {
-    navigator.share({ title: title, url: url }).catch(() => {});
-  } else {
-    navigator.clipboard.writeText(url);
-    showToast("Job link copied to clipboard!");
-  }
-}
+
 
 // Open Job Detail Modal with tabbed Overview + Full Description
 function openJobModal(slug) {
@@ -2013,18 +2004,20 @@ document.getElementById("next-btn").addEventListener("click", () => {
   state.page++; fetchJobs(); window.scrollTo({ top: 0, behavior: 'smooth' });
 });
 
-// Export CSV Action
-document.getElementById("export-csv-btn").addEventListener("click", () => {
-  const params = new URLSearchParams({
-    format: "csv",
-    category: state.category,
-    fresher_only: state.fresher_only,
-    verified_only: state.verified_only,
-    q: state.q
+// Export CSV Action (Optional)
+const exportCsvBtn = document.getElementById("export-csv-btn");
+if (exportCsvBtn) {
+  exportCsvBtn.addEventListener("click", () => {
+    const params = new URLSearchParams({
+      format: "csv",
+      category: state.category,
+      fresher_only: state.fresher_only,
+      verified_only: state.verified_only,
+      q: state.q
+    });
+    window.open(`/api/export?${params.toString()}`, "_blank");
   });
-  window.open(`/api/export?${params.toString()}`, "_blank");
-  showToast("Downloading CSV export...");
-});
+}
 
 // Trigger Live Scrape Sync Action
 const liveScrapeBtn = document.getElementById("trigger-scrape-btn");
