@@ -693,6 +693,7 @@
   .badge-fresher { background: var(--fresher-bg); color: var(--fresher); border: 1px solid var(--fresher-border); }
   .badge-verified { background: var(--verified-bg); color: var(--verified); border: 1px solid var(--verified-border); }
   .badge-walkin { background: var(--amber-bg); color: var(--amber); border: 1px solid rgba(245, 158, 11, 0.25); }
+  .badge-virtual { background: rgba(99, 102, 241, 0.14); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); }
 
   /* Meta Chips Bar */
   .job-meta-grid {
@@ -1880,7 +1881,8 @@ function renderJobs(data) {
             <div class="badge-group">
               ${job.is_fresher_friendly ? '<span class="badge badge-fresher"><i data-lucide="sparkles" style="width:11px;height:11px;"></i> FRESHER</span>' : ''}
               ${job.verified ? '<span class="badge badge-verified"><i data-lucide="shield-check" style="width:11px;height:11px;"></i> VERIFIED</span>' : ''}
-              ${job.application_type && job.application_type.toLowerCase().includes("walk") ? '<span class="badge badge-walkin"><i data-lucide="user-check" style="width:11px;height:11px;"></i> WALK-IN</span>' : ''}
+              ${job.application_type && (job.application_type.toLowerCase().includes("virtual") || job.application_type.toLowerCase().includes("video") || job.application_type.toLowerCase().includes("telephonic") || job.application_type.toLowerCase().includes("online interview")) ? '<span class="badge badge-virtual"><i data-lucide="video" style="width:11px;height:11px;"></i> VIRTUAL INTERVIEW</span>' : ''}
+              ${job.application_type && job.application_type.toLowerCase().includes("walk") && !job.application_type.toLowerCase().includes("virtual") ? '<span class="badge badge-walkin"><i data-lucide="user-check" style="width:11px;height:11px;"></i> WALK-IN</span>' : ''}
             </div>
           </div>
         </div>

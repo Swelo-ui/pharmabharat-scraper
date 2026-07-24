@@ -95,8 +95,14 @@ CATEGORY_SLUGS = [
 from datetime import datetime, timedelta
 
 APPLICATION_TYPES = [
+    "Virtual Interview", "Virtual Walk-In", "Online Interview", "Video Interview", "Telephonic Interview",
     "Walk In Interview", "Walk-In Interview", "Walkin Interview",
     "Email Application", "Online Application",
+]
+
+VIRTUAL_KEYWORDS = [
+    "virtual interview", "virtual walk", "online interview", "video interview",
+    "telephonic interview", "teams interview", "zoom interview", "google meet interview"
 ]
 
 DATE_RE = re.compile(r"\b[A-Z][a-z]+ \d{1,2},? \d{4}\b")
@@ -277,6 +283,12 @@ def parse_listing_page(html, category=None):
             if not date_match and DATE_RE.search(line):
                 date_match = DATE_RE.search(line).group()
                 continue
+            lower_line = line.lower()
+            if not app_type:
+                for vk in VIRTUAL_KEYWORDS:
+                    if vk in lower_line:
+                        app_type = "Virtual Interview"
+                        break
             if not app_type and line in APPLICATION_TYPES:
                 app_type = line
                 continue
