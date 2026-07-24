@@ -104,22 +104,21 @@
     transition: background-color 0.3s ease, color 0.3s ease;
   }
 
-  /* Header Navbar */
+  /* Header Navbar (Clean solid surface, no GPU-heavy blur for 60fps scrolling) */
   header {
     background: var(--surface);
     border-bottom: 1px solid var(--border);
     position: sticky;
     top: 0;
     z-index: 100;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
     width: 100%;
+    transform: translateZ(0);
   }
 
   .header-container {
     max-width: 1050px;
     margin: 0 auto;
-    padding: 10px 14px;
+    padding: 8px 12px;
     width: 100%;
   }
 
@@ -137,34 +136,37 @@
     gap: 8px;
     text-decoration: none;
     color: var(--ink);
+    flex: 1;
     min-width: 0;
   }
 
   .brand-logo {
-    width: 36px;
-    height: 36px;
+    width: 34px;
+    height: 34px;
     background: linear-gradient(135deg, var(--primary), #0284C7);
-    border-radius: 10px;
+    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
     color: #FFF;
     font-weight: 800;
-    font-size: 1.15rem;
-    box-shadow: 0 4px 12px var(--primary-glow);
+    font-size: 1.1rem;
+    box-shadow: 0 2px 8px var(--primary-glow);
     flex-shrink: 0;
   }
 
   .brand-title {
     font-family: 'Space Grotesk', sans-serif;
-    font-size: 1.1rem;
+    font-size: 1rem;
     font-weight: 700;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.01em;
     line-height: 1.1;
     display: flex;
     align-items: center;
     gap: 4px;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .brand-tag {
@@ -175,10 +177,11 @@
     padding: 2px 5px;
     border-radius: 4px;
     text-transform: uppercase;
+    flex-shrink: 0;
   }
 
   .brand-subtitle {
-    font-size: 0.68rem;
+    font-size: 0.65rem;
     color: var(--ink-muted);
     font-weight: 500;
     white-space: nowrap;
@@ -188,6 +191,9 @@
 
   @media (max-width: 480px) {
     .brand-subtitle { display: none; }
+    .brand-title { font-size: 0.95rem; }
+    #scrape-btn-text { display: none; } /* Show icon only on mobile so no title cutoff */
+    .btn-live-scrape { padding: 0 10px; width: 36px; justify-content: center; }
   }
 
   .header-actions {
@@ -199,7 +205,7 @@
 
   .btn-live-scrape {
     height: 36px;
-    padding: 0 10px;
+    padding: 0 12px;
     border-radius: var(--radius-md);
     background: linear-gradient(135deg, var(--primary), var(--primary-deep));
     color: #FFFFFF;
@@ -210,8 +216,8 @@
     align-items: center;
     gap: 4px;
     cursor: pointer;
-    box-shadow: 0 2px 8px var(--primary-glow);
-    transition: all 0.2s ease;
+    box-shadow: 0 2px 6px var(--primary-glow);
+    transition: background 0.2s ease;
     white-space: nowrap;
   }
 
@@ -729,37 +735,8 @@
 
   .btn-apply:hover { background: var(--primary-deep); }
 
-  /* Toast Notification */
-  .toast {
-    position: fixed;
-    top: 12px;
-    left: 50%;
-    transform: translateX(-50%) translateY(-100px);
-    background: rgba(15, 23, 42, 0.94);
-    color: #FFFFFF;
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-size: 0.78rem;
-    font-weight: 600;
-    box-shadow: var(--shadow-lg);
-    z-index: 10000;
-    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    max-width: 90vw;
-    width: auto;
-    height: auto;
-    max-height: 48px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    pointer-events: none;
-    display: inline-block;
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255,255,255,0.15);
-  }
-
-  .toast.show {
-    transform: translateX(-50%) translateY(0);
-  }
+  /* Quiet Notification (No floating popups on screen) */
+  .toast { display: none !important; }
 
   /* ── Skeleton Loader ───────────────────────────────────────────── */
   @keyframes shimmer {
@@ -1112,7 +1089,7 @@
 <div class="toolbar">
   <div class="search-box">
     <i data-lucide="search" class="search-icon" style="width:18px;height:18px;"></i>
-    <input type="text" class="search-input" id="search-input" placeholder="Search title, company, location, email, phone...">
+    <input type="text" class="search-input" id="search-input" placeholder="Search title, company, location...">
     <button class="clear-btn" id="clear-search">
       <i data-lucide="x" style="width:16px;height:16px;"></i>
     </button>
@@ -1263,12 +1240,9 @@ themeToggle.addEventListener("click", () => {
   updateThemeIcon(next);
 });
 
-// Toast Utility
+// Quiet Notification Utility (No floating UI clutter)
 function showToast(msg) {
-  const toast = document.getElementById("toast");
-  toast.textContent = msg;
-  toast.classList.add("show");
-  setTimeout(() => toast.classList.remove("show"), 2500);
+  console.log("[Status]:", msg);
 }
 
 // LocalStorage Bookmarking
