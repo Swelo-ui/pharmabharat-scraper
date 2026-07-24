@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">PharmaBharat Pro</string>
+    <string name="server_url">https://pharmabharat-scraper.onrender.com</string>
+    <string name="no_internet">No Internet Connection</string>
+    <string name="no_internet_desc">Please check your connection and tap retry.</string>
+    <string name="retry">Retry Connection</string>
+</resources>
