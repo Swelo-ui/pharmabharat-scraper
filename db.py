@@ -58,10 +58,11 @@ def init_db():
         # Migration: add any missing columns to existing DBs
         cols = [r["name"] for r in conn.execute("PRAGMA table_info(jobs)").fetchall()]
         migrations = [
-            ("email",     "ALTER TABLE jobs ADD COLUMN email TEXT"),
-            ("phone",     "ALTER TABLE jobs ADD COLUMN phone TEXT"),
-            ("scraped_at","ALTER TABLE jobs ADD COLUMN scraped_at INTEGER"),
-            ("is_active", "ALTER TABLE jobs ADD COLUMN is_active INTEGER DEFAULT 1"),
+            ("email",      "ALTER TABLE jobs ADD COLUMN email TEXT"),
+            ("phone",      "ALTER TABLE jobs ADD COLUMN phone TEXT"),
+            ("scraped_at", "ALTER TABLE jobs ADD COLUMN scraped_at INTEGER"),
+            ("is_active",  "ALTER TABLE jobs ADD COLUMN is_active INTEGER DEFAULT 1"),
+            ("banner_url", "ALTER TABLE jobs ADD COLUMN banner_url TEXT"),
         ]
         for col_name, sql in migrations:
             if col_name not in cols:
@@ -93,8 +94,8 @@ def upsert_job(job: dict) -> bool:
                 is_fresher, is_fresher_friendly, salary, location,
                 application_type, verified, posted_date_raw,
                 description_md, detail_scraped, first_seen_at, scraped_at,
-                notified, is_active, email, phone
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                notified, is_active, email, phone, banner_url
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 job["slug"],
@@ -118,6 +119,7 @@ def upsert_job(job: dict) -> bool:
                 1,  # is_active = True by default
                 job.get("email"),
                 job.get("phone"),
+                job.get("banner_url"),
             ),
         )
         return True
@@ -134,7 +136,8 @@ def update_detail(slug: str, description_md: str, extra: dict):
                             location = COALESCE(?, location),
                             experience_raw = COALESCE(?, experience_raw),
                             email = COALESCE(?, email),
-                            phone = COALESCE(?, phone)
+                            phone = COALESCE(?, phone),
+                            banner_url = COALESCE(?, banner_url)
             WHERE slug = ?
             """,
             (
@@ -145,6 +148,7 @@ def update_detail(slug: str, description_md: str, extra: dict):
                 extra.get("experience_raw"),
                 extra.get("email"),
                 extra.get("phone"),
+                extra.get("banner_url"),
                 slug,
             ),
         )

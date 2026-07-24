@@ -947,6 +947,59 @@
     border-bottom-color: var(--primary);
   }
 
+  /* Job Recruitment Banner Image Card in Modal */
+  .job-banner-card {
+    width: 100%;
+    grid-column: 1 / -1;
+    margin-bottom: 12px;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: #000;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.1);
+    position: relative;
+  }
+
+  .job-banner-img {
+    width: 100%;
+    max-height: 320px;
+    object-fit: contain;
+    display: block;
+    cursor: pointer;
+    background: #0F172A;
+    transition: opacity 0.18s ease;
+  }
+
+  .job-banner-img:hover {
+    opacity: 0.95;
+  }
+
+  .job-banner-badge {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(15, 23, 42, 0.85);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+
+  #description-content img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 12px;
+    margin: 12px 0;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-md);
+    cursor: pointer;
+  }
+
   .modal-tab:hover:not(.active) { color: var(--ink); }
 
   .tab-pane { display: none; }
@@ -1926,7 +1979,15 @@ function openJobModal(slug) {
       document.getElementById("modal-date").textContent = job.posted_date_raw ? `Posted: ${job.posted_date_raw}` : "";
       document.getElementById("modal-apply-btn").href = job.url;
 
-      // ── Overview Tab ──
+      // ── Banner Card & Overview Tab ──
+      const bannerHtml = job.banner_url ? `
+        <div class="job-banner-card">
+          <div class="job-banner-badge">
+            <i data-lucide="image" style="width:12px;height:12px;"></i> Official Recruitment Flyer / Poster
+          </div>
+          <img src="${job.banner_url}" class="job-banner-img" alt="Official Job Banner" onclick="window.open('${job.banner_url}', '_blank')">
+        </div>` : '';
+
       const fields = [
         { label: "Company",    icon: "building",   value: job.company },
         { label: "Experience", icon: "briefcase",  value: job.experience_raw },
@@ -1935,14 +1996,16 @@ function openJobModal(slug) {
         { label: "Category",   icon: "tag",        value: job.category ? job.category.replace(/-/g,' ').replace(/\b\w/g,c=>c.toUpperCase()) : null },
         { label: "Type",       icon: "user-check", value: job.application_type },
       ];
-      document.getElementById("overview-grid").innerHTML = fields
+
+      const fieldsHtml = fields
         .filter(f => f.value)
         .map(f => `
           <div class="overview-item">
             <div class="ov-label"><i data-lucide="${f.icon}" style="width:11px;height:11px;"></i> ${f.label}</div>
             <div class="ov-value">${f.value}</div>
-          </div>`).join("") ||
-          `<div style="color:var(--ink-muted);font-size:0.85rem;grid-column:1/-1;">Details available in Full Description tab.</div>`;
+          </div>`).join("");
+
+      document.getElementById("overview-grid").innerHTML = bannerHtml + (fieldsHtml || `<div style="color:var(--ink-muted);font-size:0.85rem;grid-column:1/-1;">Details available in Full Description tab.</div>`);
 
       // Contacts row
       document.getElementById("overview-contacts").innerHTML = [
@@ -1953,9 +2016,9 @@ function openJobModal(slug) {
       // ── Description Tab ──
       if (job.description_md) {
         const html = window.marked ? marked.parse(job.description_md) : job.description_md.replace(/\n/g,'<br>');
-        document.getElementById("description-content").innerHTML = html;
+        document.getElementById("description-content").innerHTML = bannerHtml + html;
       } else {
-        document.getElementById("description-content").innerHTML =
+        document.getElementById("description-content").innerHTML = bannerHtml +
           `<p style="color:var(--ink-muted);">Full description not yet scraped. Click <strong>Apply Now</strong> to view on PharmaBharat.</p>`;
       }
 

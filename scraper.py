@@ -344,11 +344,24 @@ def parse_detail_page(html):
     soup = BeautifulSoup(html, "lxml")
     container = _find_content_container(soup)
 
+    # Extract Job Banner Image (Flyers, Walk-In interview posters, Recruitment banners)
+    banner_url = None
+    og_img = soup.find("meta", property="og:image") or soup.find("meta", attrs={"name": "og:image"})
+    if og_img and og_img.get("content"):
+        c_url = og_img["content"].strip()
+        if c_url and not any(x in c_url.lower() for x in ["logo", "favicon", "default-avatar"]):
+            banner_url = c_url
+
+    if not banner_url and container:
+        img_tag = container.find("img")
+        if img_tag and img_tag.get("src"):
+            banner_url = img_tag["src"].strip()
+
     # REMOVE ALL AD ELEMENTS, IFRAMES, AND SCRIPT BLOCKS BEFORE CONVERTING TO MARKDOWN
     ad_selectors = [
         "ins", "iframe", "script", "style", ".adsbygoogle", ".ad", ".ads",
         ".advertisement", ".sharedaddy", ".wp-block-embed", ".code-block",
-        "div[class*='ad-']", "div[class*='ads']", "figure", ".jp-relatedposts"
+        "div[class*='ad-']", "div[class*='ads']", ".jp-relatedposts"
     ]
     for sel in ad_selectors:
         for tag in container.select(sel):
@@ -382,6 +395,7 @@ def parse_detail_page(html):
         "experience_raw": overview.get("experience"),
         "email": email_m.group() if email_m else None,
         "phone": phone_m.group() if phone_m else None,
+        "banner_url": banner_url,
     }
 
     salary_match = re.search(r"#+\s*Salary(.*?)(?=\n#+\s|\Z)", markdown, re.S | re.I)
