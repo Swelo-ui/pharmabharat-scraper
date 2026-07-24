@@ -340,15 +340,17 @@
     padding: 4px;
   }
 
-  /* Horizontal Filter Chips */
+  /* Horizontal Filter Chips Bar */
   .chips-wrapper {
     display: flex;
     gap: 8px;
     overflow-x: auto;
-    padding-bottom: 6px;
+    padding-bottom: 4px;
     scrollbar-width: none;
     -ms-overflow-style: none;
     align-items: center;
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
   }
   .chips-wrapper::-webkit-scrollbar { display: none; }
 
@@ -356,18 +358,19 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 38px;
-    padding: 0 14px;
+    height: 36px;
+    padding: 0 12px;
     border-radius: 20px;
     border: 1px solid var(--border);
     background: var(--surface);
     color: var(--ink-muted);
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     font-weight: 600;
     white-space: nowrap;
     cursor: pointer;
     user-select: none;
     transition: all 0.2s ease;
+    flex-shrink: 0;
   }
 
   .chip.active {
@@ -395,10 +398,37 @@
     border-color: var(--amber);
   }
 
+  /* Responsive Select Dropdowns Grid */
+  .selects-wrapper {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin-top: 10px;
+    width: 100%;
+  }
+
+  @media (max-width: 640px) {
+    .selects-wrapper {
+      grid-template-columns: 1fr 1fr;
+    }
+    #category-select {
+      grid-column: span 2;
+    }
+  }
+
+  @media (max-width: 380px) {
+    .selects-wrapper {
+      grid-template-columns: 1fr;
+    }
+    #category-select {
+      grid-column: span 1;
+    }
+  }
+
   .select-chip {
-    height: 38px;
+    height: 40px;
     padding: 0 12px;
-    border-radius: 20px;
+    border-radius: 12px;
     border: 1px solid var(--border);
     background: var(--surface);
     color: var(--ink);
@@ -407,11 +437,14 @@
     font-family: inherit;
     outline: none;
     cursor: pointer;
+    width: 100%;
+    box-shadow: var(--shadow-sm);
+    text-overflow: ellipsis;
   }
 
   /* Reset Button */
   .btn-reset-filters {
-    height: 38px;
+    height: 36px;
     padding: 0 12px;
     border-radius: 20px;
     border: 1px dashed var(--border-strong);
@@ -422,6 +455,7 @@
     cursor: pointer;
     white-space: nowrap;
     display: none;
+    flex-shrink: 0;
   }
 
   /* Main Content Area */
@@ -698,21 +732,29 @@
   /* Toast Notification */
   .toast {
     position: fixed;
-    top: 16px;
+    top: 12px;
     left: 50%;
     transform: translateX(-50%) translateY(-100px);
-    background: var(--ink);
-    color: var(--bg);
-    padding: 10px 18px;
-    border-radius: 30px;
-    font-size: 0.8rem;
+    background: rgba(15, 23, 42, 0.94);
+    color: #FFFFFF;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.78rem;
     font-weight: 600;
     box-shadow: var(--shadow-lg);
     z-index: 10000;
     transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    max-width: calc(100vw - 32px);
-    text-align: center;
+    max-width: 90vw;
+    width: auto;
+    height: auto;
+    max-height: 48px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     pointer-events: none;
+    display: inline-block;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.15);
   }
 
   .toast.show {
@@ -1076,6 +1118,7 @@
     </button>
   </div>
 
+  <!-- Row 1: Quick Filter Chips (Horizontal Scrollable Pill Bar) -->
   <div class="chips-wrapper">
     <div class="chip active" id="chip-all">
       <i data-lucide="layers" style="width:14px;height:14px;"></i> All Jobs
@@ -1089,22 +1132,24 @@
     <div class="chip" id="chip-saved">
       <i data-lucide="bookmark" style="width:14px;height:14px;color:var(--amber);"></i> Saved (<span id="saved-count">0</span>)
     </div>
-    
+    <button class="btn-reset-filters" id="reset-filters-btn">✕ Reset</button>
+  </div>
+
+  <!-- Row 2: Category, Location & Sort Dropdowns (Clean Grid on Mobile) -->
+  <div class="selects-wrapper">
     <select class="select-chip" id="category-select">
-      <option value="">All Categories</option>
+      <option value="">📁 All Categories</option>
     </select>
 
     <select class="select-chip" id="location-select">
-      <option value="">All Locations</option>
+      <option value="">📍 All Locations</option>
     </select>
 
     <select class="select-chip" id="sort-select">
-      <option value="newest">Newest First</option>
-      <option value="oldest">Oldest First</option>
-      <option value="title">Title (A-Z)</option>
+      <option value="newest">⚡ Newest First</option>
+      <option value="oldest">⏳ Oldest First</option>
+      <option value="title">🔤 Title (A-Z)</option>
     </select>
-
-    <button class="btn-reset-filters" id="reset-filters-btn">✕ Reset Filters</button>
   </div>
 </div>
 
@@ -1740,15 +1785,12 @@ liveScrapeBtn.addEventListener("click", () => {
         fetch("/api/scrape/status")
           .then(res => res.json())
           .then(st => {
-            // Live progress label in button
+            // Compact live progress label in button
             if (st.running) {
               const done = st.categories_done || 0;
               const total = st.total_targets || 22;
               const newCount = st.new_jobs || 0;
-              const cat = st.current_category
-                ? st.current_category.replace(/-/g,' ').replace(/\b\w/g, c => c.toUpperCase())
-                : '...';
-              scrapeBtnText.innerHTML = `<span class="spin">⏳</span> ${done}/${total} · ${cat}${newCount > 0 ? ` · <strong>${newCount} new</strong>` : ''}`;
+              scrapeBtnText.innerHTML = `<span class="spin">⏳</span> ${done}/${total}${newCount > 0 ? ` · <strong>${newCount} new</strong>` : ''}`;
             }
 
             if (!st.running || pollCount > 120) {  // max 4 min (120 × 2s)
