@@ -359,16 +359,29 @@ def parse_detail_page(html):
 
     # Extract Job Banner Image (Flyers, Walk-In interview posters, Recruitment banners)
     banner_url = None
-    og_img = soup.find("meta", property="og:image") or soup.find("meta", attrs={"name": "og:image"})
-    if og_img and og_img.get("content"):
-        c_url = og_img["content"].strip()
-        if c_url and not any(x in c_url.lower() for x in ["logo", "favicon", "default-avatar"]):
-            banner_url = c_url
+    # 1. Search container for uploaded flyer/poster images
+    if container:
+        for img in container.find_all("img"):
+            src = img.get("src") or img.get("data-src") or img.get("data-lazy-src")
+            if src and "wp-content/uploads" in src and not any(x in src.lower() for x in ["logo", "favicon", "avatar", "icon", "placeholder"]):
+                banner_url = src.strip()
+                break
 
+    # 2. Check og:image meta tag
+    if not banner_url:
+        og_img = soup.find("meta", property="og:image") or soup.find("meta", attrs={"name": "og:image"})
+        if og_img and og_img.get("content"):
+            c_url = og_img["content"].strip()
+            if c_url and not any(x in c_url.lower() for x in ["logo", "favicon", "avatar", "icon", "default"]):
+                banner_url = c_url
+
+    # 3. Fallback to any valid <img> tag in container
     if not banner_url and container:
-        img_tag = container.find("img")
-        if img_tag and img_tag.get("src"):
-            banner_url = img_tag["src"].strip()
+        for img in container.find_all("img"):
+            src = img.get("src") or img.get("data-src")
+            if src and src.startswith("http") and not any(x in src.lower() for x in ["logo", "favicon", "avatar", "icon"]):
+                banner_url = src.strip()
+                break
 
     # REMOVE ALL AD ELEMENTS, IFRAMES, AND SCRIPT BLOCKS BEFORE CONVERTING TO MARKDOWN
     ad_selectors = [
