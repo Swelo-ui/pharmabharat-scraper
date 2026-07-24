@@ -1556,7 +1556,7 @@ function showToast(msg) {
 function shareJob(title, url, e) {
   if (e) e.stopPropagation();
   const cleanTitle = (title || "Pharma Job").replace(/'/g, "");
-  const fullMsg = `💊 PharmaBharat Job Alert:\n${cleanTitle}\n\nApply/View details here:\n${url}`;
+  const fullMsg = `PharmaBharat Job Alert:\n${cleanTitle}\n\nApply/View details here:\n${url}`;
 
   if (navigator.share) {
     navigator.share({
@@ -1574,7 +1574,7 @@ function shareJob(title, url, e) {
 function fallbackShare(text, url) {
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(url).then(() => {
-      alert("📋 Link Copied!\nJob link copied to clipboard. You can now paste and share it anywhere.");
+      alert("Link Copied!\nJob link copied to clipboard. You can now paste and share it anywhere.");
     }).catch(() => {
       window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, "_blank");
     });
@@ -1657,7 +1657,7 @@ function getAvatarStyle(company) {
 function copyText(txt, label, e) {
   if (e) e.stopPropagation();
   navigator.clipboard.writeText(txt).then(() => {
-    showToast(`${label} copied! ✓`);
+    showToast(`${label} copied!`);
   }).catch(() => {
     showToast(`${label} copied!`);
   });
@@ -2296,14 +2296,14 @@ liveScrapeBtn.addEventListener("click", () => {
               fetchStats();
               fetchJobs();
               if (st.error) {
-                console.log(`⚠ Sync error: ${st.error}`);
+                console.log(`Sync error: ${st.error}`);
               } else if (st.new_jobs > 0) {
-                console.log(`✅ ${st.new_jobs} new jobs added!`);
+                console.log(`${st.new_jobs} new jobs added!`);
                 // Trigger Native System Notification on Android Phone!
                 if (window.AndroidNative && window.AndroidNative.showNativeNotification) {
                   window.AndroidNative.showNativeNotification(
-                    "💊 PharmaBharat Alert",
-                    `🔥 ${st.new_jobs} new fresher & pharma job openings available now!`,
+                    "PharmaBharat Alert",
+                    `${st.new_jobs} new fresher & pharma job openings available now!`,
                     "https://pharmabharat-scraper.onrender.com"
                   );
                 }
