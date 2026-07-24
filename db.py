@@ -82,6 +82,45 @@ def backfill_contacts():
         pass
 
 
+def backfill_banners():
+    """Fetch og:image for any job in database where banner_url is NULL or invalid web page URL."""
+    try:
+        import requests
+        from bs4 import BeautifulSoup
+        with get_conn() as conn:
+            rows = conn.execute(
+                "SELECT slug, url, banner_url FROM jobs WHERE banner_url IS NULL OR (banner_url NOT LIKE '%.jpg%' AND banner_url NOT LIKE '%.png%' AND banner_url NOT LIKE '%.jpeg%' AND banner_url NOT LIKE '%.webp%' AND banner_url NOT LIKE '%/wp-content/uploads/%')"
+            ).fetchall()
+            if not rows:
+                return
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+            }
+            for r in rows:
+                url = r["url"]
+                if not url or not url.startswith("http"):
+                    continue
+                try:
+                    resp = requests.get(url, headers=headers, timeout=6)
+                    if resp.status_code == 200:
+                        soup = BeautifulSoup(resp.text, "lxml")
+                        og_img = soup.find("meta", property="og:image") or soup.find("meta", attrs={"name": "og:image"})
+                        img_url = og_img.get("content").strip() if og_img and og_img.get("content") else None
+                        if not img_url:
+                            for img in soup.find_all("img"):
+                                src_val = img.get("data-full-url") or img.get("data-orig-file") or img.get("data-lazy-src") or img.get("data-src") or img.get("src")
+                                if src_val and "/wp-content/uploads/" in src_val:
+                                    img_url = src_val.strip()
+                                    break
+                        if img_url:
+                            conn.execute("UPDATE jobs SET banner_url = ? WHERE slug = ?", (img_url, r["slug"]))
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+
 def init_db():
     with get_conn() as conn:
         conn.execute("PRAGMA journal_mode=WAL")
@@ -105,8 +144,9 @@ def init_db():
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_active_cat_fresher ON jobs(is_active, category, is_fresher_friendly)"
         )
-    # Auto-extract email/phone for existing jobs
+    # Auto-extract email/phone and banner images for existing jobs
     backfill_contacts()
+    backfill_banners()
 
 
 def upsert_job(job: dict) -> bool:
@@ -161,6 +201,7 @@ def upsert_job(job: dict) -> bool:
 
 def update_detail(slug: str, description_md: str, extra: dict):
     """Deep-scrape ke baad detail page ka structured data update karo."""
+    b_url = extra.get("banner_url")
     with get_conn() as conn:
         conn.execute(
             """
@@ -170,8 +211,7 @@ def update_detail(slug: str, description_md: str, extra: dict):
                             location = COALESCE(?, location),
                             experience_raw = COALESCE(?, experience_raw),
                             email = COALESCE(?, email),
-                            phone = COALESCE(?, phone),
-                            banner_url = COALESCE(?, banner_url)
+                            phone = COALESCE(?, phone)
             WHERE slug = ?
             """,
             (
@@ -182,10 +222,11 @@ def update_detail(slug: str, description_md: str, extra: dict):
                 extra.get("experience_raw"),
                 extra.get("email"),
                 extra.get("phone"),
-                extra.get("banner_url"),
                 slug,
             ),
         )
+        if b_url and (any(ext in b_url.lower() for ext in [".jpg", ".jpeg", ".png", ".webp", ".gif"]) or "/wp-content/uploads/" in b_url):
+            conn.execute("UPDATE jobs SET banner_url = ? WHERE slug = ?", (b_url, slug))
 
 
 def purge_expired(days: int = 30):
