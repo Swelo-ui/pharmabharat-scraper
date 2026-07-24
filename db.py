@@ -43,7 +43,7 @@ CREATE INDEX IF NOT EXISTS idx_notified ON jobs(notified);
 
 @contextmanager
 def get_conn():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30.0)
     conn.row_factory = sqlite3.Row
     try:
         yield conn
@@ -84,6 +84,8 @@ def backfill_contacts():
 
 def init_db():
     with get_conn() as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
         conn.executescript(SCHEMA)
         # Migration: add any missing columns to existing DBs
         cols = [r["name"] for r in conn.execute("PRAGMA table_info(jobs)").fetchall()]

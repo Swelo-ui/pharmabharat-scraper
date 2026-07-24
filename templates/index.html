@@ -1451,6 +1451,9 @@
         <i data-lucide="x" style="width:18px;height:18px;"></i>
       </button>
     </div>
+    <div style="padding: 10px 16px 4px;">
+      <input type="text" id="location-search-input" placeholder="Search city or location..." style="width:100%; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); font-size: 0.85rem; font-weight: 600; box-sizing: border-box; outline: none;">
+    </div>
     <div class="category-list" id="location-list-items"></div>
   </div>
 </div>
@@ -1981,14 +1984,12 @@ function setNativeSwipeRefresh(enabled) {
 
 // Open Job Detail Modal with tabbed Overview + Full Description
 function openJobModal(slug) {
-  setNativeSwipeRefresh(false);
-  const modal = document.getElementById("job-modal");
+  openModalWithHistory("job-modal");
   // Reset to overview tab
   switchModalTab('overview');
   document.getElementById("overview-grid").innerHTML = `<div style="text-align:center;padding:20px;color:var(--ink-muted);grid-column:1/-1;">Loading...</div>`;
   document.getElementById("overview-contacts").innerHTML = "";
   document.getElementById("description-content").innerHTML = "Loading full description...";
-  modal.classList.add("open");
 
   fetch(`/api/job/${encodeURIComponent(slug)}`)
     .then(r => r.json())
@@ -2054,9 +2055,25 @@ document.getElementById("close-modal-btn").addEventListener("click", () => {
   setNativeSwipeRefresh(true);
 });
 
-document.getElementById("open-category-modal").addEventListener("click", () => {
+function openModalWithHistory(modalId) {
   setNativeSwipeRefresh(false);
-  document.getElementById("category-modal").classList.add("open");
+  const modal = document.getElementById(modalId);
+  if (modal) {
+    modal.classList.add("open");
+    try { window.history.pushState({ modalOpen: true, modalId: modalId }, ""); } catch(e){}
+  }
+}
+
+window.addEventListener("popstate", () => {
+  const openModals = document.querySelectorAll(".modal-overlay.open");
+  if (openModals.length > 0) {
+    openModals.forEach(m => m.classList.remove("open"));
+    setNativeSwipeRefresh(true);
+  }
+});
+
+document.getElementById("open-category-modal").addEventListener("click", () => {
+  openModalWithHistory("category-modal");
 });
 
 document.getElementById("close-category-modal").addEventListener("click", () => {
@@ -2065,8 +2082,11 @@ document.getElementById("close-category-modal").addEventListener("click", () => 
 });
 
 document.getElementById("open-location-modal").addEventListener("click", () => {
-  setNativeSwipeRefresh(false);
-  document.getElementById("location-modal").classList.add("open");
+  const searchEl = document.getElementById("location-search-input");
+  if (searchEl) { searchEl.value = ""; }
+  const items = document.querySelectorAll("#location-list-items .category-item");
+  items.forEach(el => el.style.display = "flex");
+  openModalWithHistory("location-modal");
 });
 
 document.getElementById("close-location-modal").addEventListener("click", () => {
@@ -2074,9 +2094,20 @@ document.getElementById("close-location-modal").addEventListener("click", () => 
   setNativeSwipeRefresh(true);
 });
 
+const locSearchInput = document.getElementById("location-search-input");
+if (locSearchInput) {
+  locSearchInput.addEventListener("input", (e) => {
+    const q = e.target.value.toLowerCase().trim();
+    const items = document.querySelectorAll("#location-list-items .category-item");
+    items.forEach(el => {
+      const txt = el.textContent.toLowerCase();
+      el.style.display = txt.includes(q) ? "flex" : "none";
+    });
+  });
+}
+
 document.getElementById("open-sort-modal").addEventListener("click", () => {
-  setNativeSwipeRefresh(false);
-  document.getElementById("sort-modal").classList.add("open");
+  openModalWithHistory("sort-modal");
 });
 
 document.getElementById("close-sort-modal").addEventListener("click", () => {
