@@ -1,0 +1,256 @@
+import csv
+import io
+import time
+import threading
+from collections import deque
+from flask import Flask, jsonify, request, render_template, Response
+
+import db
+import scraper
+
+app = Flask(__name__)
+db.init_db()
+
+# ─── Scrape State ─────────────────────────────────────────────────────────────
+is_scraping = False
+last_scrape_status = {
+    "running": False,
+    "new_jobs": 0,
+    "scraped_so_far": 0,
+    "current_category": None,
+    "categories_done": 0,
+    "total_targets": 0,
+    "error": None,
+    "completed_at": None,
+}
+# Last 5 sync results — newest first
+scrape_history: deque = deque(maxlen=5)
+# Smart page count: adapts based on last sync result
+_adaptive_pages = 1  # default: 1 page per category (~21 targets × 1 page ≈ 50s)
+
+# ─── Stats Cache ──────────────────────────────────────────────────────────────
+_stats_cache = {"data": None, "expires_at": 0}
+_STATS_TTL = 5  # seconds
+
+
+def _get_cached_stats():
+    now = time.time()
+    if _stats_cache["data"] is None or now > _stats_cache["expires_at"]:
+        _stats_cache["data"] = db.get_stats()
+        _stats_cache["expires_at"] = now + _STATS_TTL
+    return _stats_cache["data"]
+
+
+def _invalidate_stats_cache():
+    _stats_cache["expires_at"] = 0
+
+
+# ─── Routes ───────────────────────────────────────────────────────────────────
+
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+
+@app.route("/api/jobs")
+def api_jobs():
+    category = request.args.get("category") or None
+    fresher_only = request.args.get("fresher_only", "false").lower() == "true"
+    verified_only = request.args.get("verified_only", "false").lower() == "true"
+    location = request.args.get("location") or None
+    q = request.args.get("q") or None
+    sort_by = request.args.get("sort_by", "newest")
+    page = int(request.args.get("page", 1))
+    per_page = min(int(request.args.get("per_page", 20)), 100)
+
+    result = db.query_jobs(
+        category=category,
+        fresher_only=fresher_only,
+        verified_only=verified_only,
+        location=location,
+        q=q,
+        sort_by=sort_by,
+        page=page,
+        per_page=per_page,
+    )
+    return jsonify(result)
+
+
+@app.route("/api/job/<path:slug>")
+def api_job_detail(slug):
+    job = db.get_job_by_slug(slug)
+    if not job:
+        return jsonify({"error": "Job not found"}), 404
+    return jsonify(job)
+
+
+@app.route("/api/stats")
+def api_stats():
+    stats = dict(_get_cached_stats())
+    # Use real scrape completion time if available (more accurate than max DB timestamp)
+    if last_scrape_status["completed_at"]:
+        stats["last_sync_at"] = last_scrape_status["completed_at"]
+    else:
+        stats["last_sync_at"] = stats.get("last_updated")
+    return jsonify(stats)
+
+
+@app.route("/api/categories")
+def api_categories():
+    return jsonify(db.distinct_categories())
+
+
+@app.route("/api/locations")
+def api_locations():
+    return jsonify(db.distinct_locations())
+
+
+@app.route("/api/export")
+def api_export():
+    fmt = request.args.get("format", "csv").lower()
+    category = request.args.get("category") or None
+    fresher_only = request.args.get("fresher_only", "false").lower() == "true"
+    verified_only = request.args.get("verified_only", "false").lower() == "true"
+    q = request.args.get("q") or None
+
+    result = db.query_jobs(
+        category=category,
+        fresher_only=fresher_only,
+        verified_only=verified_only,
+        q=q,
+        page=1,
+        per_page=5000,
+    )
+    jobs = result["jobs"]
+
+    if fmt == "json":
+        return jsonify(jobs)
+
+    # Return CSV
+    output = io.StringIO()
+    writer = csv.DictWriter(
+        output,
+        fieldnames=[
+            "title", "company", "category", "experience_raw", "salary",
+            "location", "application_type", "is_fresher_friendly",
+            "verified", "url", "posted_date_raw", "email", "phone",
+        ],
+        extrasaction="ignore",
+    )
+    writer.writeheader()
+    writer.writerows(jobs)
+
+    response = Response(output.getvalue(), mimetype="text/csv")
+    response.headers["Content-Disposition"] = "attachment; filename=pharmabharat_jobs.csv"
+    return response
+
+
+# ─── Scraper Background Thread ────────────────────────────────────────────────
+
+def _progress_cb(scraped_so_far, new_so_far, category=None, categories_done=0):
+    last_scrape_status["scraped_so_far"] = scraped_so_far
+    last_scrape_status["new_jobs"] = new_so_far
+    if category is not None:
+        last_scrape_status["current_category"] = category
+    last_scrape_status["categories_done"] = categories_done
+
+
+def _run_scrape_bg(pages):
+    global is_scraping, last_scrape_status, _adaptive_pages
+    try:
+        is_scraping = True
+        total = 1 + len(scraper.CATEGORY_SLUGS)  # homepage + all categories
+        last_scrape_status["running"] = True
+        last_scrape_status["error"] = None
+        last_scrape_status["scraped_so_far"] = 0
+        last_scrape_status["new_jobs"] = 0
+        last_scrape_status["current_category"] = "homepage"
+        last_scrape_status["categories_done"] = 0
+        last_scrape_status["total_targets"] = total
+
+        new_slugs = scraper.scrape_recent(pages=pages, deep=True, progress_cb=_progress_cb)
+        last_scrape_status["new_jobs"] = len(new_slugs)
+
+        # Invalidate stats cache after successful scrape
+        _invalidate_stats_cache()
+
+        # Smart adaptive page count for next sync
+        if len(new_slugs) == 0:
+            _adaptive_pages = 1   # found nothing → stay lean
+        elif len(new_slugs) > 5:
+            _adaptive_pages = min(2, pages + 1)  # lots found → scan more
+        else:
+            _adaptive_pages = 1   # normal
+
+    except Exception as e:
+        last_scrape_status["error"] = str(e)
+        last_scrape_status["new_jobs"] = 0
+    finally:
+        is_scraping = False
+        last_scrape_status["running"] = False
+        last_scrape_status["completed_at"] = int(time.time())
+
+        # Record in history
+        scrape_history.appendleft({
+            "time": last_scrape_status["completed_at"],
+            "new_jobs": last_scrape_status["new_jobs"],
+            "scraped_so_far": last_scrape_status["scraped_so_far"],
+            "error": last_scrape_status["error"],
+        })
+
+
+@app.route("/api/scrape/trigger", methods=["POST"])
+def api_trigger_scrape():
+    global is_scraping
+    if is_scraping:
+        return jsonify({"status": "already_running", "message": "Scraper is already running."})
+
+    pages = request.args.get("pages", _adaptive_pages, type=int)
+    t = threading.Thread(target=_run_scrape_bg, args=(pages,))
+    t.daemon = True
+    t.start()
+    return jsonify({"status": "started", "message": f"Scraper started! Scanning {pages} page(s) per category."})
+
+
+@app.route("/api/scrape/status")
+def api_scrape_status():
+    return jsonify(last_scrape_status)
+
+
+@app.route("/api/scrape/history")
+def api_scrape_history():
+    return jsonify(list(scrape_history))
+
+
+# ─── Periodic Background Scheduler Thread ─────────────────────────────────────
+_scheduler_started = False
+_scheduler_lock = threading.Lock()
+
+
+def _background_scheduler_loop():
+    """Runs in background: initial delay 10s, then scrapes every 30 mins."""
+    time.sleep(10)
+    while True:
+        try:
+            if not is_scraping:
+                _run_scrape_bg(pages=_adaptive_pages)
+        except Exception:
+            pass
+        time.sleep(1800)  # 30 minutes
+
+
+def start_background_scheduler():
+    global _scheduler_started
+    with _scheduler_lock:
+        if not _scheduler_started:
+            _scheduler_started = True
+            t = threading.Thread(target=_background_scheduler_loop, daemon=True)
+            t.start()
+
+
+# Auto-start scheduler when app module is loaded
+start_background_scheduler()
+
+
+if __name__ == "__main__":
+    app.run(debug=True, port=5000)

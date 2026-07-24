@@ -1,0 +1,515 @@
+"""
+scraper.py -- PharmaBharat.com se job listings nikalne ka core logic.
+
+DESIGN NOTE (important, README bhi padhna):
+Website ka raw HTML abhi maine seedha nahi dekha (mere tools HTML ko
+markdown mein convert kar dete hain, exact CSS class names chala nahi
+pata). Isliye yeh parser CSS classes par depend NAHI karta -- iski
+jagah text-pattern / structural heuristics use karta hai:
+
+  - Har job card mein ek "Apply Now" link hota hai -> hum usse card
+    dhoondte hain, phir uske parent container ka text nikaal ke
+    regex se company / experience / date / salary / application-type
+    match karte hain.
+  - Job detail page par headings ek consistent pattern follow karte
+    hain (# Job Overview, # Educational Qualification, # Salary, etc)
+    -> hum poora content markdown mein convert karke un headings se
+    section-wise split karte hain.
+
+Agar site ka design badal jaye ya extraction galat lage, sabse pehle
+`debug_dump()` function chalao (niche diya hai) -- woh raw parsed
+output print karega taaki tum patterns ko tweak kar sako.
+
+ETHICAL / LEGAL NOTE: PharmaBharat.com ki Terms & Conditions automated
+scraping ko explicitly prohibit karti hain. Yeh script sirf PERSONAL,
+low-frequency use ke liye hai. Rate-limit (delay) kam mat karo, aur
+isse public/commercial product mat banao.
+"""
+
+import re
+import time
+import random
+import logging
+
+import requests
+from bs4 import BeautifulSoup
+from markdownify import markdownify as md
+
+import db
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+log = logging.getLogger("scraper")
+
+BASE_URL = "https://pharmabharat.com"
+
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0 Safari/537.36 "
+        "PersonalJobScraper/1.0 (contact: <your-email-here>)"
+    ),
+    "Accept-Language": "en-IN,en;q=0.9",
+}
+
+# Category slugs taken from the site's own nav menu. Add/remove as needed.
+CATEGORY_SLUGS = [
+    "internships",
+    "clinical-data-management-jobs",
+    "clinical-research-jobs",
+    "medical-writer-jobs",
+    "tmf",
+    "medical-coding-jobs",
+    "packaging-jobs",
+    "pharmacovigilance-jobs",
+    "production-jobs",
+    "quality-assurance-jobs",
+    "quality-control-jobs",
+    "regulatory-affairs-jobs",
+    "research-and-development-jobs",
+    "warehouse-jobs",
+    "Government-jobs",
+    "sas",
+    "data-analyst",
+    "medical-science-liaison-jobs",
+    "medical-reviewer",
+    "heor-rwe",
+    "scientific-writer-jobs",
+    # "college-faculty-jobs",  # returns 404 - removed
+]
+
+from datetime import datetime, timedelta
+
+APPLICATION_TYPES = [
+    "Walk In Interview", "Walk-In Interview", "Walkin Interview",
+    "Email Application", "Online Application",
+]
+
+DATE_RE = re.compile(r"\b[A-Z][a-z]+ \d{1,2},? \d{4}\b")
+EXPERIENCE_RE = re.compile(
+    r"(?i)\b(freshers?|\d+\s*[-–—]\s*\d+\+?\s*years?|\d+\+?\s*years?)\b"
+)
+# Tightened: must have digit + unit (LPA / per month / lakhs / /-) OR a number >= 4 digits
+SALARY_RE = re.compile(
+    r"(₹|Rs\.?|INR)\s*[\d,.\s\-–—]+(?:LPA|per\s*month|/-|lakhs?|pa|p\.a\.?)",
+    re.I
+)
+EMAIL_RE = re.compile(r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b")
+PHONE_RE = re.compile(r"(?:\+91[\-\s]?)?[6-9]\d{4}[\-\s]?\d{5}\b|\b[6-9]\d{9}\b")
+
+# Known Indian cities / pharma hub locations for listing-page extraction
+LOCATION_KEYWORDS = {
+    "mumbai", "pune", "hyderabad", "bangalore", "bengaluru", "chennai",
+    "delhi", "new delhi", "noida", "gurgaon", "gurugram", "ahmedabad",
+    "kolkata", "vadodara", "baroda", "surat", "nagpur", "thane", "navi mumbai",
+    "ankleshwar", "vapi", "baddi", "haridwar", "rishikesh", "chandigarh",
+    "lucknow", "jaipur", "indore", "bhopal", "vizag", "visakhapatnam",
+    "remote", "work from home", "wfh", "pan india", "across india",
+    "multiple locations", "india",
+}
+
+# Patterns that clearly indicate NOT a company name
+_NOT_COMPANY_RE = re.compile(
+    r"(?i)^(freshers?|\d[\d\s\-–—+]*years?|apply|walk[\-\s]?in|online|email|"
+    r"verified|immediate|urgent|[A-Z][a-z]+ \d{1,2},? \d{4}|₹|Rs|INR)",
+    re.I
+)
+
+# Note: "verified" is NOT in this noise list on purpose -- we need to see that
+# text in the line-matching loop below to detect the Verified badge.
+NOISE_WORDS = {"apply now", "ad", "advertisement"}
+
+
+def is_date_expired(date_str, is_walkin=False):
+    """
+    Check if a posted date or walk-in date has passed.
+    Walk-in interviews past today are expired.
+    General job posts older than 30 days are expired.
+    """
+    if not date_str:
+        return False
+    try:
+        clean_str = date_str.replace(",", "").strip()
+        dt = datetime.strptime(clean_str, "%B %d %Y")
+        today = datetime.now()
+
+        if is_walkin:
+            if dt.date() < today.date():
+                return True
+        else:
+            if (today - dt).days > 30:
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def _sleep(base_delay):
+    # thoda randomness taaki request pattern robotic na lage
+    time.sleep(base_delay + random.uniform(0.3, 1.2))
+
+
+def fetch(url, retries=3, delay=1.5):
+    for attempt in range(1, retries + 1):
+        try:
+            resp = requests.get(url, headers=HEADERS, timeout=15)
+            if resp.status_code == 200:
+                return resp.text
+            log.warning("Status %s for %s (attempt %s)", resp.status_code, url, attempt)
+            if resp.status_code == 404:
+                return None  # Don't retry 404s
+        except requests.RequestException as e:
+            log.warning("Error fetching %s: %s (attempt %s)", url, e, attempt)
+        time.sleep(delay * attempt)
+    return None
+
+
+def _clean_lines(container):
+    lines = []
+    for s in container.stripped_strings:
+        s = s.strip()
+        if not s or s.lower() in NOISE_WORDS:
+            continue
+        if s.lower().endswith("icon"):  # image alt-text jaise "Sun icon"
+            continue
+        lines.append(s)
+    return lines
+
+
+def _slug_from_url(url):
+    return url.rstrip("/").split("/")[-1]
+
+
+def _is_likely_company(text):
+    """Heuristic: is this text a company name vs noise?"""
+    if not text or len(text) < 2:
+        return False
+    if _NOT_COMPANY_RE.match(text):
+        return False
+    # Must have at least one letter
+    if not re.search(r"[a-zA-Z]", text):
+        return False
+    return True
+
+
+def _extract_location(lines):
+    """Try to find a location from remaining lines using city keyword matching."""
+    for line in lines:
+        lower = line.lower()
+        for kw in LOCATION_KEYWORDS:
+            if kw in lower:
+                return line.strip()
+    return None
+
+
+def parse_listing_page(html, category=None):
+    """Ek listing page (homepage ya category page) se job cards nikalta hai."""
+    if not html:
+        return []
+
+    soup = BeautifulSoup(html, "lxml")
+    jobs = []
+    seen_hrefs = set()
+
+    apply_links = [a for a in soup.find_all("a") if a.get_text(strip=True) == "Apply Now"]
+
+    for apply_a in apply_links:
+        href = apply_a.get("href")
+        if not href or href in seen_hrefs:
+            continue
+        seen_hrefs.add(href)
+
+        # parent container dhoondo jisme title + meta dono hon
+        container = apply_a
+        for _ in range(6):
+            if container.parent is None:
+                break
+            container = container.parent
+            text_len = len(container.get_text(strip=True))
+            if 40 <= text_len <= 700:
+                break
+
+        # title: same href wala doosra <a> jiska text "Apply Now" nahi hai
+        title = None
+        for a in container.find_all("a", href=href):
+            t = a.get_text(strip=True)
+            if t and t != "Apply Now":
+                title = t
+                break
+
+        lines = _clean_lines(container)
+
+        date_match = None
+        experience = None
+        salary = None
+        app_type = None
+        verified = False
+        email_found = None
+        phone_found = None
+        location_found = None
+        remaining = []
+
+        container_text = " ".join(lines)
+        email_m = EMAIL_RE.search(container_text)
+        if email_m:
+            email_found = email_m.group()
+        phone_m = PHONE_RE.search(container_text)
+        if phone_m:
+            phone_found = phone_m.group()
+
+        for line in lines:
+            if line == title:
+                continue
+            if not date_match and DATE_RE.search(line):
+                date_match = DATE_RE.search(line).group()
+                continue
+            if not app_type and line in APPLICATION_TYPES:
+                app_type = line
+                continue
+            if "verified" in line.lower():
+                verified = True
+                continue
+            if not experience and EXPERIENCE_RE.fullmatch(line.strip()):
+                experience = line.strip()
+                continue
+            if not salary and SALARY_RE.search(line):
+                salary = line.strip()
+                continue
+            remaining.append(line)
+
+        # Skip expired jobs (walk-in interview date passed or posted > 30 days ago)
+        is_walkin = bool(app_type and "walk" in app_type.lower())
+        if is_date_expired(date_match, is_walkin=is_walkin):
+            log.info("Skipping expired job (%s): %s", date_match, title or href)
+            continue
+
+        # Company: first remaining line that passes company heuristic
+        company = None
+        for r in remaining:
+            if _is_likely_company(r):
+                company = r
+                break
+
+        # Location: try to find from remaining lines
+        if not location_found:
+            location_found = _extract_location(remaining)
+
+        is_fresher = bool(re.search(r"(?i)\bfreshers?\b", experience or ""))
+        is_fresher_friendly = is_fresher or bool(re.match(r"^\s*0\s*[-–—]", experience or ""))
+
+        slug = _slug_from_url(href)
+        jobs.append({
+            "slug": slug,
+            "url": href if href.startswith("http") else BASE_URL + href,
+            "title": title,
+            "company": company,
+            "category": category,
+            "experience_raw": experience,
+            "is_fresher": is_fresher,
+            "is_fresher_friendly": is_fresher_friendly,
+            "salary": salary,
+            "location": location_found,
+            "application_type": app_type,
+            "verified": verified,
+            "posted_date_raw": date_match,
+            "email": email_found,
+            "phone": phone_found,
+        })
+
+    return jobs
+
+
+CONTENT_SELECTORS = [
+    "article .entry-content",
+    ".entry-content",
+    ".post-content",
+    ".single-content",
+    "article",
+    "main",
+]
+
+
+def _find_content_container(soup):
+    for sel in CONTENT_SELECTORS:
+        node = soup.select_one(sel)
+        if node and len(node.get_text(strip=True)) > 200:
+            return node
+    return soup.body or soup
+
+
+def parse_detail_page(html):
+    """Job detail page se poora structured data nikalta hai (deep scrape)."""
+    if not html:
+        return None
+
+    soup = BeautifulSoup(html, "lxml")
+    container = _find_content_container(soup)
+
+    # REMOVE ALL AD ELEMENTS, IFRAMES, AND SCRIPT BLOCKS BEFORE CONVERTING TO MARKDOWN
+    ad_selectors = [
+        "ins", "iframe", "script", "style", ".adsbygoogle", ".ad", ".ads",
+        ".advertisement", ".sharedaddy", ".wp-block-embed", ".code-block",
+        "div[class*='ad-']", "div[class*='ads']", "figure", ".jp-relatedposts"
+    ]
+    for sel in ad_selectors:
+        for tag in container.select(sel):
+            tag.decompose()
+
+    markdown = md(str(container), heading_style="ATX")
+    # trailing share/ad/related-jobs section hata do agar mila
+    cut_markers = ["Share This Job", "RECENT JOBS", "Advertisement", "Related Jobs"]
+    for marker in cut_markers:
+        idx = markdown.find(marker)
+        if idx != -1:
+            markdown = markdown[:idx]
+
+    # "Job Overview" table se key-value pairs nikalo
+    overview = {}
+    table_match = re.search(
+        r"#+\s*Job Overview(.*?)(?=\n#+\s|\Z)", markdown, re.S | re.I
+    )
+    if table_match:
+        for row in re.findall(r"\|\s*([^|\n]+?)\s*\|\s*([^|\n]+?)\s*\|", table_match.group(1)):
+            key, val = row[0].strip().lower(), row[1].strip()
+            if key and "particular" not in key and "detail" not in key:
+                overview[key] = val
+
+    email_m = EMAIL_RE.search(markdown)
+    phone_m = PHONE_RE.search(markdown)
+
+    extra = {
+        "location": overview.get("job location") or overview.get("location"),
+        "salary": None,
+        "experience_raw": overview.get("experience"),
+        "email": email_m.group() if email_m else None,
+        "phone": phone_m.group() if phone_m else None,
+    }
+
+    salary_match = re.search(r"#+\s*Salary(.*?)(?=\n#+\s|\Z)", markdown, re.S | re.I)
+    if salary_match:
+        m = SALARY_RE.search(salary_match.group(1))
+        if m:
+            extra["salary"] = m.group().strip()
+
+    return {"description_md": markdown.strip(), "extra": extra}
+
+
+# Track categories that 404'd in the current run — skip retrying them
+_dead_categories: set = set()
+
+
+def scrape_recent(pages=1, delay=1.2, deep=True, progress_cb=None):
+    """
+    Homepage + har category ka pehla `pages` page scan karta hai --
+    naye jobs pakadne ke liye. Yeh function baar-baar (e.g. har 30-60
+    min) chalao monitoring ke liye.
+
+    progress_cb: optional callable(scraped_so_far, new_so_far, category, categories_done)
+    Returns: list of slugs jo NAYE the (is run mein pehli baar dikhe).
+    """
+    db.init_db()
+    new_slugs = []
+    scraped_count = 0
+    categories_done = 0
+
+    targets = [(None, BASE_URL)] + [
+        (cat, f"{BASE_URL}/category/{cat}/") for cat in CATEGORY_SLUGS
+        if cat not in _dead_categories
+    ]
+
+    for category, base in targets:
+        cat_label = category or "homepage"
+        # Notify frontend which category we're starting
+        if progress_cb:
+            progress_cb(scraped_count, len(new_slugs), cat_label, categories_done)
+
+        for page in range(1, pages + 1):
+            url = base if page == 1 else f"{base.rstrip('/')}/page/{page}/"
+            html = fetch(url)
+            if not html:
+                if category:
+                    log.warning("Skipping dead category: %s", category)
+                    _dead_categories.add(category)
+                continue
+            for job in parse_listing_page(html, category=category):
+                scraped_count += 1
+                is_new = db.upsert_job(job)
+                if is_new:
+                    new_slugs.append(job["slug"])
+                    log.info("NEW job: %s (%s)", job["title"], job["url"])
+                    if deep:
+                        _sleep(delay)
+                        detail_html = fetch(job["url"])
+                        parsed = parse_detail_page(detail_html)
+                        if parsed:
+                            db.update_detail(job["slug"], parsed["description_md"], parsed["extra"])
+                if progress_cb:
+                    progress_cb(scraped_count, len(new_slugs), cat_label, categories_done)
+            _sleep(delay)
+
+        categories_done += 1
+        if progress_cb:
+            progress_cb(scraped_count, len(new_slugs), cat_label, categories_done)
+
+    return new_slugs
+
+
+def scrape_full(max_pages=764, delay=2.5, deep=False, category=None):
+    """
+    Poori site ka historical crawl (default: sabhi 764 pages). Bahut
+    zyada requests karega -- delay kam mat karo. `deep=True` har job
+    ka detail page bhi fetch karega (bahut slow hoga, 11000+ jobs).
+    """
+    db.init_db()
+    cats = [category] if category else [None] + CATEGORY_SLUGS
+    total_new = 0
+
+    for cat in cats:
+        base = BASE_URL if cat is None else f"{BASE_URL}/category/{cat}/"
+        for page in range(1, max_pages + 1):
+            url = base if page == 1 else f"{base.rstrip('/')}/page/{page}/"
+            html = fetch(url)
+            if not html:
+                log.info("Stopping category=%s at page=%s (fetch failed)", cat, page)
+                break
+            jobs = parse_listing_page(html, category=cat)
+            if not jobs:
+                log.info("Stopping category=%s at page=%s (no jobs found)", cat, page)
+                break
+            for job in jobs:
+                is_new = db.upsert_job(job)
+                if is_new:
+                    total_new += 1
+                    if deep:
+                        _sleep(delay)
+                        detail_html = fetch(job["url"])
+                        parsed = parse_detail_page(detail_html)
+                        if parsed:
+                            db.update_detail(job["slug"], parsed["description_md"], parsed["extra"])
+            log.info("category=%s page=%s -> %s jobs (total new so far: %s)",
+                      cat, page, len(jobs), total_new)
+            _sleep(delay)
+
+    return total_new
+
+
+def debug_dump(url=BASE_URL):
+    """Ek page fetch karke raw parsed jobs print karta hai -- selectors/
+    regex tweak karne ke liye use karo agar extraction sahi na lage."""
+    html = fetch(url)
+    jobs = parse_listing_page(html)
+    for j in jobs:
+        print(j)
+    print(f"\nTotal parsed: {len(jobs)}")
+
+
+if __name__ == "__main__":
+    import sys
+
+    if len(sys.argv) > 1 and sys.argv[1] == "debug":
+        debug_dump()
+    elif len(sys.argv) > 1 and sys.argv[1] == "full":
+        n = scrape_full()
+        print(f"Full scrape done. New jobs: {n}")
+    else:
+        n = scrape_recent(pages=2)
+        print(f"Recent scrape done. New jobs: {len(n)}")
