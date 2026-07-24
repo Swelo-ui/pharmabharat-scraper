@@ -728,12 +728,15 @@
   .contact-bar {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    padding: 10px 14px;
+    gap: 6px;
+    padding: 8px 12px;
     background: var(--surface-hover);
     border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
+    border-radius: 12px;
     margin-top: 2px;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
   }
 
   .contact-label {
@@ -749,22 +752,31 @@
   }
 
   .contact-chip {
-    font-size: 0.78rem;
+    font-size: 0.75rem;
     font-weight: 600;
     font-family: 'JetBrains Mono', monospace;
     color: var(--contact-ink);
     background: var(--contact-bg);
     border: 1px solid var(--contact-border);
     border-radius: 100px;
-    padding: 4px 12px 4px 8px;
+    padding: 4px 10px;
     text-decoration: none;
     display: inline-flex;
     align-items: center;
     gap: 6px;
     cursor: pointer;
     transition: all 0.18s ease;
-    position: relative;
+    max-width: 100%;
+    box-sizing: border-box;
     overflow: hidden;
+  }
+
+  .contact-chip span.contact-val {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+    display: inline-block;
   }
 
   .contact-chip:hover {
@@ -1882,13 +1894,13 @@ function renderJobs(data) {
               <span class="contact-chip" title="Click to copy email" onclick="copyText('${job.email}', 'Email', event)">
                 <span class="chip-type">EMAIL</span>
                 <span class="chip-icon"><i data-lucide="mail" style="width:12px;height:12px;"></i></span>
-                ${job.email}
+                <span class="contact-val">${job.email}</span>
               </span>` : ''}
             ${job.phone ? `
               <span class="contact-chip" title="Click to copy phone" onclick="copyText('${job.phone}', 'Phone', event)">
                 <span class="chip-type">CALL</span>
                 <span class="chip-icon"><i data-lucide="phone" style="width:12px;height:12px;"></i></span>
-                ${job.phone}
+                <span class="contact-val">${job.phone}</span>
               </span>` : ''}
           </div>
         ` : ''}

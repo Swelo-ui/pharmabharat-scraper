@@ -52,6 +52,36 @@ def get_conn():
         conn.close()
 
 
+import re
+
+EMAIL_RE = re.compile(r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b")
+PHONE_RE = re.compile(r"(?:\+?91[\-\s]?)?[6-9]\d{4}[\-\s]?\d{5}\b|(?:\+?91[\-\s]?)?[6-9]\d{9}\b|0\d{2,4}[\-\s]?\d{6,8}\b")
+
+
+def backfill_contacts():
+    """Extract email & phone from description_md for jobs missing contact columns."""
+    try:
+        with get_conn() as conn:
+            rows = conn.execute(
+                "SELECT slug, description_md FROM jobs WHERE (email IS NULL OR phone IS NULL) AND description_md IS NOT NULL"
+            ).fetchall()
+            for r in rows:
+                md_text = r["description_md"]
+                if not md_text:
+                    continue
+                email_m = EMAIL_RE.search(md_text)
+                phone_m = PHONE_RE.search(md_text)
+                if email_m or phone_m:
+                    e_val = email_m.group().strip() if email_m else None
+                    p_val = phone_m.group().strip() if phone_m else None
+                    conn.execute(
+                        "UPDATE jobs SET email = COALESCE(?, email), phone = COALESCE(?, phone) WHERE slug = ?",
+                        (e_val, p_val, r["slug"])
+                    )
+    except Exception:
+        pass
+
+
 def init_db():
     with get_conn() as conn:
         conn.executescript(SCHEMA)
@@ -73,6 +103,8 @@ def init_db():
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_active_cat_fresher ON jobs(is_active, category, is_fresher_friendly)"
         )
+    # Auto-extract email/phone for existing jobs
+    backfill_contacts()
 
 
 def upsert_job(job: dict) -> bool:
