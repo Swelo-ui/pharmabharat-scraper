@@ -8,7 +8,10 @@ from flask import Flask, jsonify, request, render_template, Response
 import db
 import scraper
 
-app = Flask(__name__)
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+app = Flask(__name__, template_folder=os.path.join(BASE_DIR, "templates"))
 db.init_db()
 
 # ─── Scrape State ─────────────────────────────────────────────────────────────
