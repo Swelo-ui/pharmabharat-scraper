@@ -587,30 +587,32 @@
     gap: 12px;
   }
 
-  /* Job Card */
+  /* ── Ultra Premium Native Android Job Card ─────────────────── */
   .job-card {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
+    border-radius: 18px;
     padding: 18px;
-    box-shadow: var(--shadow-sm);
+    box-shadow: 0 4px 16px -4px rgba(15, 23, 42, 0.06);
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 14px;
     position: relative;
-    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
     animation: fadeIn 0.3s ease;
     cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: translateY(0); }
+  .job-card:active {
+    transform: scale(0.985);
+    box-shadow: 0 2px 8px -2px rgba(15, 23, 42, 0.1);
   }
 
   .job-card:hover {
-    box-shadow: var(--shadow-md);
-    border-color: var(--border-strong);
+    box-shadow: 0 8px 24px -6px rgba(15, 23, 42, 0.1);
+    border-color: var(--primary-light);
   }
 
   .job-card-top {
@@ -620,18 +622,19 @@
   }
 
   .company-avatar {
-    width: 44px;
-    height: 44px;
-    border-radius: 10px;
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
     background: linear-gradient(135deg, var(--surface-hover), var(--border));
     color: var(--primary-deep);
     font-weight: 800;
-    font-size: 1.1rem;
+    font-size: 1.15rem;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
     border: 1px solid var(--border);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
   }
 
   .job-header-info {
@@ -639,34 +642,49 @@
     min-width: 0;
   }
 
+  .company-sub-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 2px;
+  }
+
+  .company-name-text {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--primary);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .job-title {
-    font-size: 1.08rem;
+    font-size: 1.1rem;
     font-weight: 700;
     color: var(--ink);
     text-decoration: none;
     line-height: 1.35;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
     display: block;
-  }
-
-  .job-title:hover {
-    color: var(--primary);
+    letter-spacing: -0.01em;
   }
 
   .badge-group {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    margin-top: 4px;
   }
 
   .badge {
     font-size: 0.68rem;
     font-weight: 700;
-    padding: 3px 8px;
-    border-radius: 6px;
+    padding: 3px 9px;
+    border-radius: 20px;
     text-transform: uppercase;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.03em;
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -674,26 +692,36 @@
 
   .badge-fresher { background: var(--fresher-bg); color: var(--fresher); border: 1px solid var(--fresher-border); }
   .badge-verified { background: var(--verified-bg); color: var(--verified); border: 1px solid var(--verified-border); }
-  .badge-walkin { background: var(--amber-bg); color: var(--amber); }
+  .badge-walkin { background: var(--amber-bg); color: var(--amber); border: 1px solid rgba(245, 158, 11, 0.25); }
 
+  /* Meta Chips Bar */
   .job-meta-grid {
     display: flex;
     flex-wrap: wrap;
-    gap: 14px;
-    font-size: 0.83rem;
-    color: var(--ink-muted);
+    gap: 6px;
   }
 
-  .meta-item {
+  .meta-pill {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    font-weight: 500;
+    padding: 5px 10px;
+    border-radius: 8px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--ink-muted);
   }
 
-  .meta-item strong {
+  .meta-pill strong {
     color: var(--ink);
-    font-weight: 600;
+  }
+
+  .meta-pill.highlight-salary {
+    background: var(--fresher-bg);
+    border-color: var(--fresher-border);
+    color: var(--fresher);
   }
 
   /* Contact Chips (Emails & Phone Numbers on Feed Cards) */
@@ -1776,21 +1804,23 @@ function renderJobs(data) {
         <div class="job-card-top">
           <div class="company-avatar" style="${avatarStyle}">${initial}</div>
           <div class="job-header-info">
+            <div class="company-sub-line">
+              <span class="company-name-text">${job.company || "Pharma Company"}</span>
+              <span class="posted-date">${job.posted_date_raw || 'Recent'}</span>
+            </div>
             <span class="job-title">${job.title || "Untitled Position"}</span>
             <div class="badge-group">
-              ${job.is_fresher_friendly ? '<span class="badge badge-fresher"><i data-lucide="sparkles" style="width:12px;height:12px;"></i> FRESHER</span>' : ''}
-              ${job.verified ? '<span class="badge badge-verified"><i data-lucide="shield-check" style="width:12px;height:12px;"></i> VERIFIED</span>' : ''}
-              ${job.application_type && job.application_type.toLowerCase().includes("walk") ? '<span class="badge badge-walkin"><i data-lucide="user-check" style="width:12px;height:12px;"></i> WALK-IN</span>' : ''}
+              ${job.is_fresher_friendly ? '<span class="badge badge-fresher"><i data-lucide="sparkles" style="width:11px;height:11px;"></i> FRESHER</span>' : ''}
+              ${job.verified ? '<span class="badge badge-verified"><i data-lucide="shield-check" style="width:11px;height:11px;"></i> VERIFIED</span>' : ''}
+              ${job.application_type && job.application_type.toLowerCase().includes("walk") ? '<span class="badge badge-walkin"><i data-lucide="user-check" style="width:11px;height:11px;"></i> WALK-IN</span>' : ''}
             </div>
           </div>
         </div>
 
         <div class="job-meta-grid">
-          <span class="meta-item"><i data-lucide="building" style="width:14px;height:14px;color:var(--primary);"></i> <strong>${job.company || "Pharma Company"}</strong></span>
-          <span class="meta-item"><i data-lucide="briefcase" style="width:14px;height:14px;"></i> <strong>${job.experience_raw || "Experience Not Specified"}</strong></span>
-          ${(() => { const s = sanitizeSalary(job.salary); return s ? `<span class="meta-item"><i data-lucide="coins" style="width:14px;height:14px;color:var(--amber);"></i> <strong>${s}</strong></span>` : ''; })()
-          }
-          ${job.location ? `<span class="meta-item"><i data-lucide="map-pin" style="width:14px;height:14px;"></i> ${job.location}</span>` : ''}
+          ${job.location ? `<span class="meta-pill"><i data-lucide="map-pin" style="width:13px;height:13px;color:var(--primary);"></i> ${job.location}</span>` : ''}
+          ${job.experience_raw ? `<span class="meta-pill"><i data-lucide="briefcase" style="width:13px;height:13px;color:var(--ink-muted);"></i> <strong>${job.experience_raw}</strong></span>` : ''}
+          ${(() => { const s = sanitizeSalary(job.salary); return s ? `<span class="meta-pill highlight-salary"><i data-lucide="coins" style="width:13px;height:13px;"></i> <strong>${s}</strong></span>` : ''; })()}
         </div>
 
         ${hasContact ? `
@@ -1811,14 +1841,15 @@ function renderJobs(data) {
         ` : ''}
 
         <div class="job-footer-row">
-          <span class="posted-date">${job.posted_date_raw || 'Recent'}</span>
-          <div class="action-buttons" onclick="event.stopPropagation()">
-            <button class="btn-action btn-bookmark ${isSaved ? 'saved' : ''}" data-slug="${job.slug}" onclick="toggleSave('${job.slug}', event)">
-              ${isSaved ? '<i data-lucide="bookmark-check" style="width:14px;height:14px;"></i> Saved' : '<i data-lucide="bookmark" style="width:14px;height:14px;"></i> Save'}
-            </button>
-            <button class="btn-action" onclick="shareJob('${job.title}', '${job.url}', event)">
-              <i data-lucide="share-2" style="width:14px;height:14px;"></i> Share
-            </button>
+          <div class="action-buttons" style="width:100%; justify-content: space-between;" onclick="event.stopPropagation()">
+            <div style="display:flex; gap:6px;">
+              <button class="btn-action btn-bookmark ${isSaved ? 'saved' : ''}" data-slug="${job.slug}" onclick="toggleSave('${job.slug}', event)">
+                ${isSaved ? '<i data-lucide="bookmark-check" style="width:14px;height:14px;"></i> Saved' : '<i data-lucide="bookmark" style="width:14px;height:14px;"></i> Save'}
+              </button>
+              <button class="btn-action" onclick="shareJob('${job.title}', '${job.url}', event)">
+                <i data-lucide="share-2" style="width:14px;height:14px;"></i> Share
+              </button>
+            </div>
             <a class="btn-action btn-apply" href="${job.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">
               Apply <i data-lucide="external-link" style="width:12px;height:12px;"></i>
             </a>
