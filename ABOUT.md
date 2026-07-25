@@ -6,4 +6,4 @@ As a first-generation pharmacy graduate himself, currently navigating the same f
 
 Pharmly aggregates listings from platforms like **PharmaBharat.com** and **PharmaRecruiter.com** — with full credit and a direct link back to the original posting for every job — and tags each one by real degree eligibility (B.Pharm / M.Pharm / Pharm.D / D.Pharm), so freshers spend less time scrolling and more time applying.
 
-Connect: [linkedin.com/in/drx-himanshu-sharma](https://linkedin.com/in/drx-himanshu-sharma)
+Connect: [linkedin.com/in/ai-himanshu-sharma](https://www.linkedin.com/in/ai-himanshu-sharma?utm_source=share_via&utm_content=profile&utm_medium=member_android)

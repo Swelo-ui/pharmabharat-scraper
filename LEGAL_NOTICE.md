@@ -38,4 +38,4 @@ Pharmly is provided "as-is," without warranty of any kind. Job listing accuracy,
 
 ---
 
-Maintained by Himanshu Sharma — [LinkedIn](https://linkedin.com/in/drx-himanshu-sharma)
+Maintained by Himanshu Sharma — [LinkedIn Profile](https://www.linkedin.com/in/ai-himanshu-sharma?utm_source=share_via&utm_content=profile&utm_medium=member_android)
