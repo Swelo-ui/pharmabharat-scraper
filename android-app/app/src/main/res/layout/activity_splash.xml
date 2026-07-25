@@ -24,7 +24,7 @@
             android:layout_width="38dp"
             android:layout_height="38dp"
             android:layout_marginTop="32dp"
-            android:indeterminateTint="#0F766E" />
+            android:indeterminateTint="#26BFA3" />
 
         <TextView
             android:layout_width="wrap_content"
