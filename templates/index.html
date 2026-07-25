@@ -434,7 +434,7 @@
     stroke: #FFFFFF !important;
   }
 
-  /* Responsive Select Dropdowns Grid */
+  /* Responsive Select Dropdowns 2x2 Grid */
   .selects-wrapper {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -443,18 +443,14 @@
     width: 100%;
   }
 
-  #open-category-modal {
-    grid-column: span 2;
-  }
-
   .select-btn {
     height: 42px;
-    padding: 0 14px;
+    padding: 0 10px;
     border-radius: 12px;
     border: 1.5px solid var(--border);
     background: var(--surface);
     color: var(--ink);
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     font-weight: 600;
     font-family: inherit;
     display: flex;
@@ -470,11 +466,12 @@
   .select-btn .btn-left {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     min-width: 0;
+    flex: 1;
   }
 
-  .select-btn #selected-category-text {
+  .select-btn .btn-left span {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
