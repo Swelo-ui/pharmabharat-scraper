@@ -1155,8 +1155,7 @@
 
   .pager-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  /* Job Detail Modal / Bottom Sheet (Solid Overlay for 60fps GPU acceleration) */
-  .modal-overlay {
+  .modal-overlay, .bottom-sheet-modal {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(15, 23, 42, 0.68);
@@ -1170,12 +1169,38 @@
   }
 
   @media (min-width: 640px) {
-    .modal-overlay { align-items: center; padding: 20px; }
+    .modal-overlay, .bottom-sheet-modal { align-items: center; padding: 20px; }
   }
 
-  .modal-overlay.open {
+  .modal-overlay.open, .bottom-sheet-modal.open {
     opacity: 1;
     pointer-events: auto;
+  }
+
+  .bottom-sheet-modal .sheet-content {
+    background: var(--surface);
+    width: 100%;
+    max-width: 680px;
+    max-height: 85vh;
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transform: translateY(100%);
+    transition: transform 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);
+    box-shadow: var(--shadow-lg);
+  }
+
+  @media (min-width: 640px) {
+    .bottom-sheet-modal .sheet-content {
+      border-radius: var(--radius-lg);
+      transform: translateY(0);
+    }
+  }
+
+  .bottom-sheet-modal.open .sheet-content {
+    transform: translateY(0);
   }
 
   .modal-card {
@@ -1305,7 +1330,6 @@
     <div class="top-bar">
       <a href="#" class="brand" style="display:flex; align-items:center; gap:8px; text-decoration:none;">
         <img src="/static/images/pharmly_header_brand.png" alt="Pharmly Logo" style="height:40px; width:auto; max-width:190px; object-fit:contain; display:block;">
-        <span class="brand-tag" style="background:linear-gradient(135deg, #0F766E, #0D9488); color:#FFFFFF; padding:2px 7px; border-radius:6px; font-size:0.68rem; font-weight:700; flex-shrink:0;">PRO</span>
       </a>
       <div class="header-actions">
         <button class="btn-live-scrape" id="trigger-scrape-btn" title="Sync Latest Jobs from PharmaBharat">
@@ -2385,7 +2409,7 @@ document.getElementById("close-modal-btn").addEventListener("click", () => {
 
 // Centralized modal close — always restores swipe refresh & pointer events
 function closeAllModals() {
-  document.querySelectorAll(".modal-overlay.open").forEach(m => m.classList.remove("open"));
+  document.querySelectorAll(".modal-overlay.open, .bottom-sheet-modal.open").forEach(m => m.classList.remove("open"));
   setNativeSwipeRefresh(true);
 }
 
@@ -2405,7 +2429,7 @@ function openModalWithHistory(modalId) {
 }
 
 window.addEventListener("popstate", () => {
-  const openModals = document.querySelectorAll(".modal-overlay.open");
+  const openModals = document.querySelectorAll(".modal-overlay.open, .bottom-sheet-modal.open");
   if (openModals.length > 0) {
     closeAllModals();
   }
