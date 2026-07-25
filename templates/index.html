@@ -1271,6 +1271,7 @@
     font-weight: 600;
     box-shadow: var(--shadow-lg);
     z-index: 2000;
+    pointer-events: none; /* CRITICAL: toast must NEVER block card touches */
     transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
@@ -1585,9 +1586,21 @@ themeToggle.addEventListener("click", () => {
   updateThemeIcon(next);
 });
 
-// Quiet Notification Utility (No floating UI clutter)
+// Toast Notification Utility — pointer-events:none so it NEVER blocks card touches
+let _toastTimer = null;
 function showToast(msg) {
-  console.log("[Status]:", msg);
+  const toast = document.getElementById("toast");
+  if (!toast) { console.log("[Status]:", msg); return; }
+  toast.textContent = msg;
+  toast.style.display = "block";
+  // Force reflow then animate in
+  toast.offsetHeight;
+  toast.classList.add("show");
+  if (_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => {
+    toast.classList.remove("show");
+    setTimeout(() => { toast.style.display = "none"; }, 350);
+  }, 2200);
 }
 
 // Universal Share Function (Supports Professional Structured Layout + Android Intent + Web Share + WhatsApp)
@@ -1708,14 +1721,35 @@ function getAvatarStyle(company) {
   return `background:${bg};color:${fg};border-color:${fg}33;`;
 }
 
-// Copy Contact Helper
+// Copy Contact Helper — safe for Android WebView (no clipboard API hang)
 function copyText(txt, label, e) {
   if (e) e.stopPropagation();
-  navigator.clipboard.writeText(txt).then(() => {
+  // Android WebView safe clipboard: try modern API first, fall back to execCommand
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt)
+        .then(() => showToast(`${label} copied!`))
+        .catch(() => _fallbackCopy(txt, label));
+    } else {
+      _fallbackCopy(txt, label);
+    }
+  } catch(err) {
+    _fallbackCopy(txt, label);
+  }
+}
+function _fallbackCopy(txt, label) {
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = txt;
+    ta.style.cssText = "position:fixed;top:-9999px;left:-9999px;opacity:0;";
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
     showToast(`${label} copied!`);
-  }).catch(() => {
-    showToast(`${label} copied!`);
-  });
+  } catch(e) {
+    showToast(`${label}: ${txt}`);
+  }
 }
 
 // Salary sanitizer — filter out junk values like "rs", "Rs.", "-", blank
@@ -1830,7 +1864,7 @@ function selectCategory(slug, name) {
   state.category = slug;
   state.page = 1;
   document.getElementById("selected-category-text").textContent = name;
-  document.getElementById("category-modal").classList.remove("open");
+  closeAllModals();
   loadDropdowns();
   fetchJobs();
 }
@@ -1839,7 +1873,7 @@ function selectLocation(slug, name) {
   state.location = slug;
   state.page = 1;
   document.getElementById("selected-location-text").textContent = name || "All Locations";
-  document.getElementById("location-modal").classList.remove("open");
+  closeAllModals();
   loadDropdowns();
   fetchJobs();
 }
@@ -1848,7 +1882,7 @@ function selectSort(key, name) {
   state.sort_by = key;
   state.page = 1;
   document.getElementById("selected-sort-text").textContent = name;
-  document.getElementById("sort-modal").classList.remove("open");
+  closeAllModals();
 
   // Highlight active sort item in modal list
   const container = document.getElementById("sort-list-items");
@@ -1994,7 +2028,9 @@ function renderJobs(data) {
   document.getElementById("prev-btn").disabled = data.page <= 1;
   document.getElementById("next-btn").disabled = data.page >= totalPages;
 
-  if (window.lucide) lucide.createIcons();
+  // Scope lucide to only the job feed — prevents ghost SVG overlays from full DOM scan
+  const feedEl = document.getElementById("job-feed");
+  if (window.lucide && feedEl) lucide.createIcons({ nodes: feedEl.querySelectorAll("[data-lucide]") });
 }
 
 // Fetch Jobs API
@@ -2045,7 +2081,10 @@ function setNativeSwipeRefresh(enabled) {
 
 // Open Job Detail Modal with tabbed Overview + Full Description
 function openJobModal(slug) {
-  openModalWithHistory("job-modal");
+  // Guard: if modal already open (e.g. rapid double-tap), don't double-push history
+  const alreadyOpen = document.getElementById("job-modal").classList.contains("open");
+  if (!alreadyOpen) openModalWithHistory("job-modal");
+  else setNativeSwipeRefresh(false);
   // Reset to overview tab
   switchModalTab('overview');
   document.getElementById("overview-grid").innerHTML = `<div style="text-align:center;padding:20px;color:var(--ink-muted);grid-column:1/-1;">Loading...</div>`;
@@ -2118,26 +2157,45 @@ function openJobModal(slug) {
 }
 
 document.getElementById("close-modal-btn").addEventListener("click", () => {
-  document.getElementById("job-modal").classList.remove("open");
-  setNativeSwipeRefresh(true);
+  closeAllModals();
 });
+
+// Centralized modal close — always restores swipe refresh & pointer events
+function closeAllModals() {
+  document.querySelectorAll(".modal-overlay.open").forEach(m => m.classList.remove("open"));
+  setNativeSwipeRefresh(true);
+}
 
 function openModalWithHistory(modalId) {
   setNativeSwipeRefresh(false);
   const modal = document.getElementById(modalId);
   if (modal) {
     modal.classList.add("open");
-    try { window.history.pushState({ modalOpen: true, modalId: modalId }, ""); } catch(e){}
+    // Only push state if not already in modal state (prevents duplicate history entries)
+    try {
+      const state = window.history.state;
+      if (!state || !state.modalOpen) {
+        window.history.pushState({ modalOpen: true, modalId: modalId }, "");
+      }
+    } catch(e){}
   }
 }
 
 window.addEventListener("popstate", () => {
   const openModals = document.querySelectorAll(".modal-overlay.open");
   if (openModals.length > 0) {
-    openModals.forEach(m => m.classList.remove("open"));
-    setNativeSwipeRefresh(true);
+    closeAllModals();
   }
 });
+
+// WATCHDOG: every 3 seconds, if NO modal is visually open but swipe is locked → auto-unlock
+// This catches any edge case where modal state got corrupted
+setInterval(() => {
+  const anyOpen = document.querySelectorAll(".modal-overlay.open").length > 0;
+  if (!anyOpen) {
+    setNativeSwipeRefresh(true);
+  }
+}, 3000);
 
 document.getElementById("open-category-modal").addEventListener("click", () => {
   openModalWithHistory("category-modal");
@@ -2395,10 +2453,7 @@ setInterval(fetchStats, 60000);
   const el = document.getElementById(id);
   if (el) {
     el.addEventListener("click", (e) => {
-      if (e.target === el) {
-        el.classList.remove("open");
-        setNativeSwipeRefresh(true);
-      }
+      if (e.target === el) closeAllModals();
     });
   }
 });
