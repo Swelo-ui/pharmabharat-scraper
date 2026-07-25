@@ -744,49 +744,62 @@ def parse_pr_listing_page(html, source="pharmarecruiter"):
 _pr_dead_pages: set = set()
 
 
+PR_CATEGORIES = [
+    "",  # Homepage (all recent posts)
+    "category/walk-in-interviews/",
+    "category/freshers-jobs/",
+    "category/qc-jobs/",
+    "category/qa-jobs/",
+    "category/production-jobs/",
+    "category/rd-jobs/",
+    "category/pharmacovigilance-jobs/",
+]
+
+
 def scrape_pr_recent(pages=1, delay=1.5, deep=True, progress_cb=None):
     """
-    PharmaRecruiter.in ka freshers-jobs section scrape karta hai.
+    PharmaRecruiter.in ka homepage aur saare main category sections scrape karta hai.
     Returns: list of new slugs.
     """
     db.init_db()
     new_slugs = []
     scraped_count = 0
 
-    if progress_cb:
-        progress_cb(scraped_count, len(new_slugs), "pharmarecruiter-freshers", 0)
+    pr_base = "https://pharmarecruiter.in"
 
-    for page in range(1, pages + 1):
-        if page == 1:
-            url = PR_BASE_URL
-        else:
-            url = f"{PR_BASE_URL.rstrip('/')}/page/{page}/"
+    for cat_path in PR_CATEGORIES:
+        base_cat_url = f"{pr_base}/{cat_path}" if cat_path else pr_base
+        for page in range(1, pages + 1):
+            if page == 1:
+                url = base_cat_url
+            else:
+                url = f"{base_cat_url.rstrip('/')}/page/{page}/"
 
-        html = fetch(url)
-        if not html:
-            log.warning("PR: fetch failed for page %s", page)
-            break
+            html = fetch(url)
+            if not html:
+                log.warning("PR: fetch failed for %s", url)
+                break
 
-        jobs = parse_pr_listing_page(html)
-        if not jobs:
-            log.info("PR: No jobs on page %s, stopping.", page)
-            break
+            jobs = parse_pr_listing_page(html)
+            if not jobs:
+                log.info("PR: No jobs found on %s, skipping.", url)
+                break
 
-        for job in jobs:
-            scraped_count += 1
-            is_new = db.upsert_job(job)
-            if is_new:
-                new_slugs.append(job["slug"])
-                log.info("PR NEW job: %s (%s)", job["title"], job["url"])
-                if deep:
-                    _sleep(delay)
-                    detail_html = fetch(job["url"])
-                    parsed = parse_detail_page(detail_html)
-                    if parsed:
-                        db.update_detail(job["slug"], parsed["description_md"], parsed["extra"])
-            if progress_cb:
-                progress_cb(scraped_count, len(new_slugs), "pharmarecruiter-freshers", 0)
-        _sleep(delay)
+            for job in jobs:
+                scraped_count += 1
+                is_new = db.upsert_job(job)
+                if is_new:
+                    new_slugs.append(job["slug"])
+                    log.info("PR NEW job: %s (%s)", job["title"], job["url"])
+                    if deep:
+                        _sleep(delay)
+                        detail_html = fetch(job["url"])
+                        parsed = parse_detail_page(detail_html)
+                        if parsed:
+                            db.update_detail(job["slug"], parsed["description_md"], parsed["extra"])
+                if progress_cb:
+                    progress_cb(scraped_count, len(new_slugs), "pharmarecruiter", 0)
+            _sleep(delay)
 
     return new_slugs
 
