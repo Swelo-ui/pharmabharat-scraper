@@ -40,6 +40,11 @@ CREATE TABLE IF NOT EXISTS jobs (
     source          TEXT DEFAULT 'pharmabharat'  -- which site: pharmabharat / pharmarecruiter
 );
 
+CREATE TABLE IF NOT EXISTS meta (
+    key             TEXT PRIMARY KEY,
+    value           TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_category ON jobs(category);
 CREATE INDEX IF NOT EXISTS idx_fresher ON jobs(is_fresher_friendly);
 CREATE INDEX IF NOT EXISTS idx_notified ON jobs(notified);
@@ -379,6 +384,30 @@ def get_job_by_slug(slug: str):
         return dict(row) if row else None
 
 
+def set_last_sync_time(ts: int | None = None):
+    """Store the exact timestamp when a scrape completed into SQLite meta table."""
+    if ts is None:
+        ts = int(time.time())
+    try:
+        with get_conn() as conn:
+            conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('last_sync_at', ?)", (str(ts),))
+    except Exception:
+        pass
+
+
+def get_last_sync_time() -> int:
+    """Fetch exact timestamp of last completed scrape from DB meta table."""
+    try:
+        with get_conn() as conn:
+            row = conn.execute("SELECT value FROM meta WHERE key = 'last_sync_at'").fetchone()
+            if row and row["value"]:
+                return int(row["value"])
+            row_max = conn.execute("SELECT MAX(first_seen_at) as m FROM jobs WHERE is_active = 1").fetchone()
+            return row_max["m"] if row_max and row_max["m"] else int(time.time())
+    except Exception:
+        return int(time.time())
+
+
 def get_stats():
     """Return dashboard summary metrics."""
     with get_conn() as conn:
@@ -386,7 +415,7 @@ def get_stats():
         fresher = conn.execute("SELECT COUNT(*) as c FROM jobs WHERE is_fresher_friendly = 1 AND is_active = 1").fetchone()["c"]
         verified = conn.execute("SELECT COUNT(*) as c FROM jobs WHERE verified = 1 AND is_active = 1").fetchone()["c"]
         categories = conn.execute("SELECT COUNT(DISTINCT category) as c FROM jobs WHERE category IS NOT NULL AND is_active = 1").fetchone()["c"]
-        last_job = conn.execute("SELECT MAX(first_seen_at) as m FROM jobs WHERE is_active = 1").fetchone()["m"]
+        last_sync = get_last_sync_time()
         # Source-wise counts
         pb_count = conn.execute("SELECT COUNT(*) as c FROM jobs WHERE is_active = 1 AND (source = 'pharmabharat' OR source IS NULL)").fetchone()["c"]
         pr_count = conn.execute("SELECT COUNT(*) as c FROM jobs WHERE is_active = 1 AND source = 'pharmarecruiter'").fetchone()["c"]
@@ -395,7 +424,7 @@ def get_stats():
             "fresher": fresher,
             "verified": verified,
             "categories": categories,
-            "last_updated": last_job,
+            "last_updated": last_sync,
             "pharmabharat_count": pb_count,
             "pharmarecruiter_count": pr_count,
         }

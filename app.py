@@ -221,6 +221,7 @@ def _run_scrape_bg(pages):
         is_scraping = False
         last_scrape_status["running"] = False
         last_scrape_status["completed_at"] = int(time.time())
+        db.set_last_sync_time(last_scrape_status["completed_at"])
 
         # Record in history
         scrape_history.appendleft({

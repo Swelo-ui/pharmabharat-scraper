@@ -51,6 +51,7 @@ def job_cycle():
         new_slugs = scraper.scrape_all_recent(pages=LISTING_PAGES_TO_CHECK, deep=True)
         count = len(new_slugs)
         log.info("✓ Found %s new job(s) across both sites.", count)
+        db.set_last_sync_time()
 
         sent = notifier.notify_new_jobs()
         log.info("✓ Sent %s notification(s).", sent)
