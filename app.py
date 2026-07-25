@@ -146,22 +146,22 @@ def api_export():
         q=q,
         source=source,
         page=1,
-        per_page=50000,
+        per_page=100000,
     )
     jobs = result["jobs"]
 
     if fmt == "json":
         return jsonify(jobs)
 
-    # Return CSV with UTF-8 BOM so Excel opens it cleanly with correct encoding
+    # Return CSV with UTF-8 BOM so Excel opens it cleanly with correct encoding & full details
     output = io.StringIO()
     output.write("\ufeff")  # UTF-8 BOM for Microsoft Excel
     writer = csv.DictWriter(
         output,
         fieldnames=[
             "title", "company", "category", "location", "experience_raw", "salary",
-            "application_type", "is_fresher_friendly", "verified", "source",
-            "url", "posted_date_raw", "email", "phone",
+            "application_type", "is_fresher_friendly", "verified", "email", "phone",
+            "posted_date_raw", "url", "description_md", "source"
         ],
         extrasaction="ignore",
     )
@@ -169,7 +169,7 @@ def api_export():
     writer.writerows(jobs)
 
     response = Response(output.getvalue(), mimetype="text/csv; charset=utf-8-sig")
-    response.headers["Content-Disposition"] = "attachment; filename=pharmabharat_jobs_export.csv"
+    response.headers["Content-Disposition"] = "attachment; filename=pharmabharat_jobs_full_details_export.csv"
     return response
 
 

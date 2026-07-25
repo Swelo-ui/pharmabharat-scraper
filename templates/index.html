@@ -1591,11 +1591,23 @@ function showToast(msg) {
   console.log("[Status]:", msg);
 }
 
-// Universal Share Function (Supports Native Android Intent + Web Share API + Clipboard Copy + WhatsApp fallback)
+// Universal Share Function (Supports Professional Structured Layout + Android Intent + Web Share + WhatsApp)
 function shareJob(title, url, e) {
   if (e) e.stopPropagation();
-  const cleanTitle = (title || "Pharma Job").replace(/'/g, "");
-  const fullMsg = `PharmaBharat Job Alert:\n${cleanTitle}\n\nApply/View details here:\n${url}`;
+  const job = (typeof currentModalJob !== 'undefined' && currentModalJob && currentModalJob.title === title) ? currentModalJob : null;
+  const cleanTitle = (title || "Pharma Job Opportunity").trim();
+  const company = (job && job.company) ? job.company : "";
+  const exp = (job && job.experience_raw) ? job.experience_raw : "";
+  const loc = (job && job.location) ? job.location : "";
+  const email = (job && job.email) ? job.email : "";
+  const phone = (job && job.phone) ? job.phone : "";
+
+  let fullMsg = `PharmaBharat Job Alert:\n\nPosition: ${cleanTitle}\n`;
+  if (company) fullMsg += `Company: ${company}\n`;
+  if (exp) fullMsg += `Experience: ${exp}\n`;
+  if (loc) fullMsg += `Location: ${loc}\n`;
+  if (email || phone) fullMsg += `Contact: ${[email, phone].filter(Boolean).join(" / ")}\n`;
+  fullMsg += `\nApply / View Details Here:\n${url}`;
 
   if (window.AndroidNative && window.AndroidNative.shareText) {
     window.AndroidNative.shareText(cleanTitle, fullMsg);
@@ -2301,12 +2313,7 @@ document.getElementById("export-csv-btn").addEventListener("click", () => {
   });
   const exportUrl = `/api/export?${params.toString()}`;
   showToast("Downloading Excel data file...");
-
-  if (window.AndroidNative && window.AndroidNative.downloadFile) {
-    window.AndroidNative.downloadFile(exportUrl, "pharmabharat_jobs_export.csv");
-  } else {
-    window.location.href = exportUrl;
-  }
+  window.open(exportUrl, "_blank");
 });
 
 // Trigger Live Scrape Sync Action
