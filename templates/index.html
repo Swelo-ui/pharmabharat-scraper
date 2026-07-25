@@ -1203,6 +1203,62 @@
     transform: translateY(0);
   }
 
+  .sheet-handle {
+    width: 36px;
+    height: 4px;
+    background: var(--border-strong);
+    border-radius: 4px;
+    margin: 10px auto 4px auto;
+    flex-shrink: 0;
+  }
+
+  .sheet-header {
+    padding: 14px 20px 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  .sheet-close {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--surface-hover);
+    border: 1px solid var(--border);
+    color: var(--ink-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.15s ease;
+    padding: 0;
+    outline: none;
+    box-shadow: none;
+  }
+
+  .sheet-close:hover {
+    background: var(--border);
+    color: var(--ink);
+  }
+
+  .sheet-close i, .sheet-close svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  .sheet-body {
+    padding: 20px;
+    overflow-y: auto;
+    line-height: 1.6;
+    color: var(--ink);
+    -webkit-overflow-scrolling: touch;
+  }
+
   .modal-card {
     background: var(--surface);
     width: 100%;
@@ -1665,34 +1721,38 @@
   <div class="sheet-backdrop" id="close-about-backdrop"></div>
   <div class="sheet-content">
     <div class="sheet-handle"></div>
-    <div class="sheet-header" style="padding-bottom:12px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between;">
-      <div style="display:flex; align-items:center; gap:10px;">
-        <img src="/static/images/app_icon.png" style="width:36px; height:36px; border-radius:10px; object-fit:cover;" alt="Pharmly">
-        <div>
-          <h3 style="margin:0; font-size:1.1rem; font-weight:800;">About Pharmly</h3>
-          <span style="font-size:0.75rem; color:var(--ink-muted);">Founded by Himanshu Sharma (B.Pharm 2026)</span>
+    <div class="sheet-header">
+      <div style="display:flex; align-items:center; gap:12px; min-width:0; flex:1;">
+        <img src="/static/images/app_icon.png" style="width:38px; height:38px; border-radius:10px; object-fit:cover; flex-shrink:0; border:1px solid var(--border);" alt="Pharmly">
+        <div style="min-width:0; flex:1;">
+          <h3 style="margin:0; font-size:1.05rem; font-weight:800; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">About Pharmly</h3>
+          <span style="font-size:0.75rem; color:var(--ink-muted); display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Founded by Himanshu Sharma (B.Pharm 2026)</span>
         </div>
       </div>
-      <button class="sheet-close" id="close-about-btn"><i data-lucide="x"></i></button>
+      <button class="sheet-close" id="close-about-btn" aria-label="Close">
+        <i data-lucide="x"></i>
+      </button>
     </div>
-    <div class="sheet-body" style="padding:16px; max-height:75vh; overflow-y:auto; line-height:1.6; color:var(--ink);">
+    <div class="sheet-body">
       <div style="background:var(--surface-hover); padding:16px; border-radius:14px; border:1px solid var(--border); margin-bottom:16px;">
         <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
-          <div style="width:48px; height:48px; border-radius:50%; background:linear-gradient(135deg, #0F766E, #0D9488); color:#FFF; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:1.2rem; flex-shrink:0;">HS</div>
+          <div style="width:46px; height:46px; border-radius:50%; background:linear-gradient(135deg, #26BFA3, #172C5B); color:#FFF; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:1.1rem; flex-shrink:0; box-shadow:0 2px 8px var(--primary-glow);">HS</div>
           <div>
-            <div style="font-weight:800; font-size:1rem;">Himanshu Sharma</div>
+            <div style="font-weight:800; font-size:0.98rem; color:var(--ink);">Himanshu Sharma</div>
             <div style="font-size:0.78rem; color:var(--ink-muted);">B.Pharm Graduate (2026) | ShriRam College of Pharmacy, Banmore</div>
             <div style="font-size:0.74rem; color:var(--primary); font-weight:700; margin-top:2px;">Founder, PharmaLens & Pharmly</div>
           </div>
         </div>
         <p style="font-size:0.85rem; margin:0 0 12px 0;">Pharmly is built and maintained by Himanshu Sharma, a first-generation pharmacy graduate currently navigating the same fresher job hunt as thousands of other B.Pharm, M.Pharm, Pharm.D, and D.Pharm graduates across India.</p>
         <p style="font-size:0.85rem; margin:0 0 14px 0;">Himanshu built Pharmly out of a very real, personal frustration: countless job listings labeled "fresher" that actually demanded 1-3 years of experience, with no real way to filter out the noise.</p>
-        <a href="https://linkedin.com/in/drx-himanshu-sharma" target="_blank" rel="noopener" class="btn-action" style="display:inline-flex; align-items:center; gap:8px; background:#0A66C2; color:#FFF; text-decoration:none; padding:12px 18px; border-radius:10px; font-weight:700; font-size:0.88rem; width:100%; justify-content:center; box-shadow:0 4px 12px rgba(10,102,194,0.25);">
+        <a href="https://linkedin.com/in/drx-himanshu-sharma" target="_blank" rel="noopener" class="btn-action" style="display:inline-flex; align-items:center; gap:8px; background:#0A66C2; color:#FFF; text-decoration:none; padding:12px 18px; border-radius:10px; font-weight:700; font-size:0.88rem; width:100%; justify-content:center; box-shadow:0 4px 12px rgba(10,102,194,0.25); border:none;">
           <i data-lucide="linkedin" style="width:18px;height:18px;"></i> Connect on LinkedIn
         </a>
       </div>
 
-      <h4 style="font-size:0.95rem; font-weight:700; margin:16px 0 8px 0; color:var(--ink);"><i data-lucide="target" style="width:16px;height:16px;color:var(--primary);vertical-align:middle;"></i> Our Core Mission & Attribution</h4>
+      <h4 style="font-size:0.92rem; font-weight:700; margin:16px 0 8px 0; color:var(--ink); display:flex; align-items:center; gap:6px;">
+        <i data-lucide="target" style="width:16px;height:16px;color:var(--primary);"></i> Our Core Mission & Attribution
+      </h4>
       <p style="font-size:0.85rem; margin:0 0 10px 0;">Pharmly aggregates listings from platforms like <strong>PharmaBharat.com</strong> and <strong>PharmaRecruiter.com</strong> — with full credit and a direct link back to the original posting for every single job.</p>
       <p style="font-size:0.85rem; margin:0;">It tags each job by genuine degree eligibility (B.Pharm / M.Pharm / Pharm.D / D.Pharm), so freshers spend less time scrolling and more time applying to real opportunities.</p>
     </div>
@@ -1704,40 +1764,47 @@
   <div class="sheet-backdrop" id="close-legal-backdrop"></div>
   <div class="sheet-content">
     <div class="sheet-handle"></div>
-    <div class="sheet-header" style="padding-bottom:12px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between;">
-      <div style="display:flex; align-items:center; gap:10px;">
-        <i data-lucide="shield-alert" style="width:26px; height:26px; color:var(--primary);"></i>
-        <div>
-          <h3 style="margin:0; font-size:1.1rem; font-weight:800;">Legal Notice & Fair Use Disclaimer</h3>
-          <span style="font-size:0.75rem; color:var(--ink-muted);">Last Updated: July 2026</span>
+    <div class="sheet-header">
+      <div style="display:flex; align-items:center; gap:12px; min-width:0; flex:1;">
+        <div style="width:38px; height:38px; border-radius:10px; background:var(--primary-light); display:flex; align-items:center; justify-content:center; flex-shrink:0; border:1px solid var(--primary-glow);">
+          <i data-lucide="shield-alert" style="width:20px; height:20px; color:var(--primary);"></i>
+        </div>
+        <div style="min-width:0; flex:1;">
+          <h3 style="margin:0; font-size:1.05rem; font-weight:800; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Legal Notice & Fair Use</h3>
+          <span style="font-size:0.75rem; color:var(--ink-muted); display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Non-Commercial Project • Last Updated: July 2026</span>
         </div>
       </div>
-      <button class="sheet-close" id="close-legal-btn"><i data-lucide="x"></i></button>
+      <button class="sheet-close" id="close-legal-btn" aria-label="Close">
+        <i data-lucide="x"></i>
+      </button>
     </div>
-    <div class="sheet-body" style="padding:16px; max-height:75vh; overflow-y:auto; line-height:1.6; color:var(--ink); font-size:0.84rem;">
-      <div style="background:#FFFBEB; border:1px solid #FCD34D; padding:12px 14px; border-radius:10px; color:#92400E; font-size:0.8rem; margin-bottom:14px; font-weight:600;">
-        <i data-lucide="info" style="width:15px;height:15px;vertical-align:middle;"></i> Pharmly is a free, non-commercial, personal community project built solely for educational & job discovery assistance.
+    <div class="sheet-body" style="font-size:0.84rem;">
+      <div style="background:#FFFBEB; border:1px solid #FCD34D; padding:12px 14px; border-radius:10px; color:#92400E; font-size:0.8rem; margin-bottom:14px; font-weight:600; display:flex; align-items:flex-start; gap:8px;">
+        <i data-lucide="info" style="width:16px;height:16px;flex-shrink:0;margin-top:2px;"></i>
+        <span>Pharmly is a free, non-commercial, personal community project built solely for educational & job discovery assistance.</span>
       </div>
 
-      <h4 style="font-size:0.9rem; font-weight:700; margin:12px 0 4px 0;">1. Purpose & Non-Commercial Nature</h4>
+      <h4 style="font-size:0.88rem; font-weight:700; margin:12px 0 4px 0; color:var(--ink);">1. Purpose & Non-Commercial Nature</h4>
       <p style="margin:0 0 10px 0;">Pharmly is a free, non-commercial personal project built by a B.Pharm graduate to help pharmacy freshers across India find genuine entry-level job openings. It is <strong>NOT</strong> distributed on commercial app stores, contains <strong>NO ads, subscriptions, paid features, or data resale</strong>.</p>
 
-      <h4 style="font-size:0.9rem; font-weight:700; margin:12px 0 4px 0;">2. Data Sourcing & Credit</h4>
+      <h4 style="font-size:0.88rem; font-weight:700; margin:12px 0 4px 0; color:var(--ink);">2. Data Sourcing & Credit</h4>
       <p style="margin:0 0 10px 0;">Pharmly aggregates publicly available job listing data from <strong>PharmaBharat.com</strong> and <strong>PharmaRecruiter.com</strong>. All scraping is rate-limited to minimize load. Pharmly does not claim ownership over any job content — all credit belongs to original source sites and employers. Users are always provided direct links to original postings.</p>
 
-      <h4 style="font-size:0.9rem; font-weight:700; margin:12px 0 4px 0;">3. Fair Use Position</h4>
+      <h4 style="font-size:0.88rem; font-weight:700; margin:12px 0 4px 0; color:var(--ink);">3. Fair Use Position</h4>
       <p style="margin:0 0 10px 0;">Operated under good-faith, non-commercial intent for aiding job discovery for an underserved audience (pharmacy freshers), consistent with general fair-use/fair-dealing principles.</p>
 
-      <h4 style="font-size:0.9rem; font-weight:700; margin:12px 0 4px 0; color:#DC2626;">4. Takedown & Direct Contact Policy</h4>
+      <h4 style="font-size:0.88rem; font-weight:700; margin:12px 0 4px 0; color:#DC2626;">4. Takedown & Direct Contact Policy</h4>
       <p style="margin:0 0 10px 0;">If <strong>PharmaBharat.com</strong>, <strong>PharmaRecruiter.com</strong>, or any employer has any concern regarding data usage, attribution, or listings, please reach out directly:</p>
       
       <div style="background:var(--surface-hover); padding:14px; border-radius:12px; border:1px solid var(--border); margin-bottom:14px; text-align:center;">
-        <div style="font-weight:700; margin-bottom:6px; color:var(--ink);">📧 Email Maintainer Directly</div>
+        <div style="font-weight:700; margin-bottom:6px; color:var(--ink); display:flex; align-items:center; justify-content:center; gap:6px;">
+          <i data-lucide="mail" style="width:16px;height:16px;color:var(--primary);"></i> Email Maintainer Directly
+        </div>
         <a href="mailto:himanshusharma.shriram@gmail.com" style="color:var(--primary); font-weight:800; font-size:0.9rem; word-break:break-all; text-decoration:none;">himanshusharma.shriram@gmail.com</a>
         <p style="font-size:0.75rem; color:var(--ink-muted); margin:6px 0 0 0;">We commit to responding within 48–72 hours and voluntarily taking down any content or source requested.</p>
       </div>
 
-      <h4 style="font-size:0.9rem; font-weight:700; margin:12px 0 4px 0;">5. No Warranty</h4>
+      <h4 style="font-size:0.88rem; font-weight:700; margin:12px 0 4px 0; color:var(--ink);">5. No Warranty</h4>
       <p style="margin:0;">Pharmly is provided "as-is" without warranty of any kind. Job availability and accuracy depend on source websites.</p>
     </div>
   </div>
