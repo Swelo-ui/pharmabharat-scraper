@@ -381,6 +381,8 @@
     flex-shrink: 0;
   }
 
+  #chip-bpharm i, #chip-bpharm svg { color: #0d9488; }
+  #chip-mpharm i, #chip-mpharm svg { color: #7c3aed; }
   #chip-fresher i, #chip-fresher svg { color: var(--fresher); }
   #chip-verified i, #chip-verified svg { color: var(--verified); }
   #chip-saved i, #chip-saved svg { color: var(--amber); }
@@ -390,6 +392,18 @@
     color: #FFFFFF !important;
     border-color: var(--primary);
     box-shadow: 0 2px 6px var(--primary-glow);
+  }
+
+  .chip.active-bpharm {
+    background: #0d9488;
+    color: #FFFFFF !important;
+    border-color: #0d9488;
+  }
+
+  .chip.active-mpharm {
+    background: #7c3aed;
+    color: #FFFFFF !important;
+    border-color: #7c3aed;
   }
 
   .chip.active-fresher {
@@ -411,6 +425,8 @@
   }
 
   .chip.active i, .chip.active svg,
+  .chip.active-bpharm i, .chip.active-bpharm svg,
+  .chip.active-mpharm i, .chip.active-mpharm svg,
   .chip.active-fresher i, .chip.active-fresher svg,
   .chip.active-verified i, .chip.active-verified svg,
   .chip.active-saved i, .chip.active-saved svg {
@@ -706,6 +722,10 @@
   .badge-verified { background: var(--verified-bg); color: var(--verified); border: 1px solid var(--verified-border); }
   .badge-walkin { background: var(--amber-bg); color: var(--amber); border: 1px solid rgba(245, 158, 11, 0.25); }
   .badge-virtual { background: rgba(99, 102, 241, 0.14); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); }
+  .badge-bpharm { background: rgba(13, 148, 136, 0.12); color: #0d9488; border: 1px solid rgba(13, 148, 136, 0.3); }
+  .badge-mpharm { background: rgba(124, 58, 237, 0.12); color: #7c3aed; border: 1px solid rgba(124, 58, 237, 0.3); }
+  .badge-pharmd { background: rgba(37, 99, 235, 0.12); color: #2563eb; border: 1px solid rgba(37, 99, 235, 0.3); }
+  .badge-dpharm { background: rgba(217, 119, 6, 0.12); color: #d97706; border: 1px solid rgba(217, 119, 6, 0.3); }
 
   /* Meta Chips Bar */
   .job-meta-grid {
@@ -1337,29 +1357,44 @@
     </button>
   </div>
 
-  <!-- Row 1: Quick Filter Chips (No-Swipe 4-Column Segmented Tab Bar) -->
-  <div class="chips-wrapper">
-    <div class="chip active" id="chip-all">
+  <!-- Row 1: Quick Filter Chips (Scrollable Segmented Tab Bar) -->
+  <div class="chips-wrapper" style="display:flex; gap:6px; overflow-x:auto; width:100%; padding-bottom:2px; scrollbar-width:none;">
+    <div class="chip active" id="chip-all" style="flex-shrink:0; padding:0 10px;">
       <i data-lucide="layers"></i> <span class="chip-text">All</span>
     </div>
-    <div class="chip" id="chip-fresher">
+    <div class="chip" id="chip-bpharm" style="flex-shrink:0; padding:0 10px;">
+      <i data-lucide="graduation-cap"></i> <span class="chip-text">B.Pharm</span>
+    </div>
+    <div class="chip" id="chip-mpharm" style="flex-shrink:0; padding:0 10px;">
+      <i data-lucide="award"></i> <span class="chip-text">M.Pharm</span>
+    </div>
+    <div class="chip" id="chip-fresher" style="flex-shrink:0; padding:0 10px;">
       <i data-lucide="sparkles"></i> <span class="chip-text">Fresher</span>
     </div>
-    <div class="chip" id="chip-verified">
+    <div class="chip" id="chip-verified" style="flex-shrink:0; padding:0 10px;">
       <i data-lucide="shield-check"></i> <span class="chip-text">Verified</span>
     </div>
-    <div class="chip" id="chip-saved">
+    <div class="chip" id="chip-saved" style="flex-shrink:0; padding:0 10px;">
       <i data-lucide="bookmark"></i> <span class="chip-text">Saved (<span id="saved-count">0</span>)</span>
     </div>
   </div>
 
-  <!-- Row 2: Category, Location & Sort Lucide Trigger Buttons -->
+  <!-- Row 2: Category, Degree, Location & Sort Lucide Trigger Buttons -->
   <div class="selects-wrapper">
     <!-- Category Picker Button -->
     <button class="select-btn" id="open-category-modal">
       <span class="btn-left">
         <i data-lucide="layout-grid" style="width:16px;height:16px;color:var(--primary);"></i>
         <span id="selected-category-text">All Categories</span>
+      </span>
+      <i data-lucide="chevron-down" style="width:16px;height:16px;color:var(--ink-muted);"></i>
+    </button>
+
+    <!-- Degree Picker Button -->
+    <button class="select-btn" id="open-degree-modal">
+      <span class="btn-left">
+        <i data-lucide="graduation-cap" style="width:16px;height:16px;color:var(--primary);"></i>
+        <span id="selected-degree-text">All Degrees</span>
       </span>
       <i data-lucide="chevron-down" style="width:16px;height:16px;color:var(--ink-muted);"></i>
     </button>
@@ -1479,6 +1514,58 @@
   </div>
 </div>
 
+<!-- Degree Picker Bottom Sheet Modal (Lucide Icons for Degree Filter) -->
+<div class="modal-overlay" id="degree-modal">
+  <div class="modal-card category-sheet">
+    <div class="modal-header">
+      <div style="font-weight:700;font-size:1.05rem;display:flex;align-items:center;gap:8px;color:var(--ink);">
+        <i data-lucide="graduation-cap" style="width:20px;height:20px;color:var(--primary);"></i>
+        Select Qualification / Degree
+      </div>
+      <button class="btn-icon" id="close-degree-modal">
+        <i data-lucide="x" style="width:18px;height:18px;"></i>
+      </button>
+    </div>
+    <div class="category-list" id="degree-list-items">
+      <div class="category-item active" onclick="selectDegree('', 'All Degrees')">
+        <div class="cat-left">
+          <i data-lucide="layers" style="width:18px;height:18px;color:var(--primary);"></i>
+          <span>All Degrees & Qualifications</span>
+        </div>
+        <i data-lucide="check" style="width:16px;height:16px;color:var(--primary);"></i>
+      </div>
+      <div class="category-item" onclick="selectDegree('bpharm', 'B.Pharm')">
+        <div class="cat-left">
+          <i data-lucide="graduation-cap" style="width:18px;height:18px;color:#0d9488;"></i>
+          <span>B.Pharm (Bachelor of Pharmacy)</span>
+        </div>
+        <i data-lucide="chevron-right" style="width:14px;height:14px;color:var(--ink-soft);"></i>
+      </div>
+      <div class="category-item" onclick="selectDegree('mpharm', 'M.Pharm')">
+        <div class="cat-left">
+          <i data-lucide="award" style="width:18px;height:18px;color:#7c3aed;"></i>
+          <span>M.Pharm (Master of Pharmacy)</span>
+        </div>
+        <i data-lucide="chevron-right" style="width:14px;height:14px;color:var(--ink-soft);"></i>
+      </div>
+      <div class="category-item" onclick="selectDegree('pharmd', 'Pharm.D')">
+        <div class="cat-left">
+          <i data-lucide="book-open" style="width:18px;height:18px;color:#2563eb;"></i>
+          <span>Pharm.D (Doctor of Pharmacy)</span>
+        </div>
+        <i data-lucide="chevron-right" style="width:14px;height:14px;color:var(--ink-soft);"></i>
+      </div>
+      <div class="category-item" onclick="selectDegree('dpharm', 'D.Pharm')">
+        <div class="cat-left">
+          <i data-lucide="scroll" style="width:18px;height:18px;color:#d97706;"></i>
+          <span>D.Pharm (Diploma in Pharmacy)</span>
+        </div>
+        <i data-lucide="chevron-right" style="width:14px;height:14px;color:var(--ink-soft);"></i>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Location Picker Bottom Sheet Modal (Lucide Map-Pin Icons for every location) -->
 <div class="modal-overlay" id="location-modal">
   <div class="modal-card category-sheet">
@@ -1556,11 +1643,22 @@ const state = {
   verified_only: false,
   saved_only: false,
   category: "",
+  degree: "",
   location: "",
   q: "",
   sort_by: "newest",
   savedSlugs: JSON.parse(localStorage.getItem("pb_saved_jobs") || "[]")
 };
+
+function detectDegrees(title, desc, category) {
+  const txt = `${title || ''} ${desc || ''} ${category || ''}`.toLowerCase();
+  const degs = [];
+  if (/\bb[\.\-\s]?pharm\b|\bbachelor\s+of\s+pharmacy\b/.test(txt)) degs.push("B.Pharm");
+  if (/\bm[\.\-\s]?pharm\b|\bmaster\s+of\s+pharmacy\b/.test(txt)) degs.push("M.Pharm");
+  if (/\bpharm[\.\-\s]?d\b|\bdoctor\s+of\s+pharmacy\b/.test(txt)) degs.push("Pharm.D");
+  if (/\bd[\.\-\s]?pharm\b|\bdiploma\s+in\s+pharmacy\b/.test(txt)) degs.push("D.Pharm");
+  return degs;
+}
 
 let currentModalJob = null;
 
@@ -1934,7 +2032,7 @@ function renderJobs(data) {
   }
 
   // Check if any filters are active to toggle Active Filter Reset Bar
-  const isFiltered = state.fresher_only || state.verified_only || state.saved_only || state.category || state.location || state.q;
+  const isFiltered = state.fresher_only || state.verified_only || state.saved_only || state.category || state.degree || state.location || state.q;
   const filterBar = document.getElementById("active-filter-bar");
   if (filterBar) filterBar.style.display = isFiltered ? "flex" : "none";
 
@@ -1955,6 +2053,7 @@ function renderJobs(data) {
     const hasContact = job.email || job.phone;
     const initial = getCompanyInitial(job.company);
     const avatarStyle = getAvatarStyle(job.company);
+    const degrees = job.degrees || detectDegrees(job.title, job.description_md, job.category);
 
     return `
       <div class="job-card" onclick="openJobModal('${job.slug}')">
@@ -1967,9 +2066,17 @@ function renderJobs(data) {
             </div>
             <span class="job-title">${job.title || "Untitled Position"}</span>
             <div class="badge-group">
+              ${degrees.includes('B.Pharm') ? '<span class="badge badge-bpharm"><i data-lucide="graduation-cap" style="width:11px;height:11px;"></i> B.PHARM</span>' : ''}
+              ${degrees.includes('M.Pharm') ? '<span class="badge badge-mpharm"><i data-lucide="award" style="width:11px;height:11px;"></i> M.PHARM</span>' : ''}
+              ${degrees.includes('Pharm.D') ? '<span class="badge badge-pharmd"><i data-lucide="book-open" style="width:11px;height:11px;"></i> PHARM.D</span>' : ''}
+              ${degrees.includes('D.Pharm') ? '<span class="badge badge-dpharm"><i data-lucide="scroll" style="width:11px;height:11px;"></i> D.PHARM</span>' : ''}
               ${job.is_fresher_friendly ? '<span class="badge badge-fresher"><i data-lucide="sparkles" style="width:11px;height:11px;"></i> FRESHER</span>' : ''}
               ${job.verified ? '<span class="badge badge-verified"><i data-lucide="shield-check" style="width:11px;height:11px;"></i> VERIFIED</span>' : ''}
               ${job.application_type && (job.application_type.toLowerCase().includes("virtual") || job.application_type.toLowerCase().includes("video") || job.application_type.toLowerCase().includes("telephonic") || job.application_type.toLowerCase().includes("online interview")) ? '<span class="badge badge-virtual"><i data-lucide="video" style="width:11px;height:11px;"></i> VIRTUAL INTERVIEW</span>' : ''}
+              ${job.application_type && job.application_type.toLowerCase().includes("walk") && !job.application_type.toLowerCase().includes("virtual") ? '<span class="badge badge-walkin"><i data-lucide="user-check" style="width:11px;height:11px;"></i> WALK-IN</span>' : ''}
+            </div>
+          </div>
+        </div>`></i> VIRTUAL INTERVIEW</span>' : ''}
               ${job.application_type && job.application_type.toLowerCase().includes("walk") && !job.application_type.toLowerCase().includes("virtual") ? '<span class="badge badge-walkin"><i data-lucide="user-check" style="width:11px;height:11px;"></i> WALK-IN</span>' : ''}
             </div>
           </div>
@@ -2042,6 +2149,7 @@ function fetchJobs() {
     fresher_only: state.fresher_only,
     verified_only: state.verified_only,
     category: state.category,
+    degree: state.degree,
     location: state.location,
     q: state.q,
     sort_by: state.sort_by
@@ -2109,13 +2217,17 @@ function openJobModal(slug) {
           <img src="${job.banner_url}" class="job-banner-img" alt="Official Job Banner" onclick="window.open('${job.banner_url}', '_blank')">
         </div>` : '';
 
+      const degrees = job.degrees || detectDegrees(job.title, job.description_md, job.category);
+      const degreeText = degrees.length > 0 ? degrees.join(", ") : null;
+
       const fields = [
-        { label: "Company",    icon: "building",   value: job.company },
-        { label: "Experience", icon: "briefcase",  value: job.experience_raw },
-        { label: "Salary",     icon: "coins",      value: sanitizeSalary(job.salary) },
-        { label: "Location",   icon: "map-pin",    value: job.location },
-        { label: "Category",   icon: "tag",        value: job.category ? job.category.replace(/-/g,' ').replace(/\b\w/g,c=>c.toUpperCase()) : null },
-        { label: "Type",       icon: "user-check", value: job.application_type },
+        { label: "Company",    icon: "building",       value: job.company },
+        { label: "Experience", icon: "briefcase",      value: job.experience_raw },
+        { label: "Salary",     icon: "coins",          value: sanitizeSalary(job.salary) },
+        { label: "Location",   icon: "map-pin",        value: job.location },
+        { label: "Degree Req", icon: "graduation-cap", value: degreeText },
+        { label: "Category",   icon: "tag",            value: job.category ? job.category.replace(/-/g,' ').replace(/\b\w/g,c=>c.toUpperCase()) : null },
+        { label: "Type",       icon: "user-check",     value: job.application_type },
       ];
 
       const fieldsHtml = fields
@@ -2244,12 +2356,60 @@ document.getElementById("modal-share-btn").addEventListener("click", () => {
   if (currentModalJob) shareJob(currentModalJob.title, currentModalJob.url);
 });
 
+document.getElementById("open-degree-modal").addEventListener("click", () => {
+  openModalWithHistory("degree-modal");
+});
+
+document.getElementById("close-degree-modal").addEventListener("click", () => {
+  closeAllModals();
+});
+
+function selectDegree(slug, name) {
+  state.degree = slug;
+  state.page = 1;
+  document.getElementById("selected-degree-text").textContent = name || "All Degrees";
+  closeAllModals();
+
+  // Highlight active degree item in modal list
+  const container = document.getElementById("degree-list-items");
+  if (container) {
+    const items = container.querySelectorAll(".category-item");
+    items.forEach(el => {
+      const isSel = (slug === "" && el.textContent.includes("All Degrees")) || (slug && el.textContent.toLowerCase().includes(slug));
+      el.classList.toggle("active", isSel);
+    });
+  }
+
+  updateChipActiveState();
+  fetchJobs();
+}
+
 // Event Listeners for Filter Chips
 document.getElementById("chip-all").addEventListener("click", () => {
   state.fresher_only = false;
   state.verified_only = false;
   state.saved_only = false;
+  state.degree = "";
   state.page = 1;
+  document.getElementById("selected-degree-text").textContent = "All Degrees";
+  updateChipActiveState();
+  fetchJobs();
+});
+
+document.getElementById("chip-bpharm").addEventListener("click", () => {
+  state.degree = state.degree === "bpharm" ? "" : "bpharm";
+  state.saved_only = false;
+  state.page = 1;
+  document.getElementById("selected-degree-text").textContent = state.degree === "bpharm" ? "B.Pharm" : "All Degrees";
+  updateChipActiveState();
+  fetchJobs();
+});
+
+document.getElementById("chip-mpharm").addEventListener("click", () => {
+  state.degree = state.degree === "mpharm" ? "" : "mpharm";
+  state.saved_only = false;
+  state.page = 1;
+  document.getElementById("selected-degree-text").textContent = state.degree === "mpharm" ? "M.Pharm" : "All Degrees";
   updateChipActiveState();
   fetchJobs();
 });
@@ -2280,7 +2440,10 @@ document.getElementById("chip-saved").addEventListener("click", () => {
 });
 
 function updateChipActiveState() {
-  document.getElementById("chip-all").classList.toggle("active", !state.fresher_only && !state.verified_only && !state.saved_only);
+  const isAll = !state.fresher_only && !state.verified_only && !state.saved_only && !state.degree;
+  document.getElementById("chip-all").classList.toggle("active", isAll);
+  document.getElementById("chip-bpharm").classList.toggle("active-bpharm", state.degree === "bpharm");
+  document.getElementById("chip-mpharm").classList.toggle("active-mpharm", state.degree === "mpharm");
   document.getElementById("chip-fresher").classList.toggle("active-fresher", state.fresher_only);
   document.getElementById("chip-verified").classList.toggle("active-verified", state.verified_only);
   document.getElementById("chip-saved").classList.toggle("active-saved", state.saved_only);
@@ -2310,12 +2473,14 @@ document.getElementById("reset-filters-btn").addEventListener("click", () => {
   state.verified_only = false;
   state.saved_only = false;
   state.category = "";
+  state.degree = "";
   state.location = "";
   state.q = "";
   state.sort_by = "newest";
   state.page = 1;
 
   document.getElementById("selected-category-text").textContent = "All Categories";
+  document.getElementById("selected-degree-text").textContent = "All Degrees";
   document.getElementById("selected-location-text").textContent = "All Locations";
   document.getElementById("selected-sort-text").textContent = "Newest First";
   document.getElementById("search-input").value = "";
@@ -2449,7 +2614,7 @@ liveScrapeBtn.addEventListener("click", () => {
 setInterval(fetchStats, 60000);
 
 // Close modals on overlay click
-["job-modal", "category-modal", "location-modal", "sort-modal"].forEach(id => {
+["job-modal", "category-modal", "degree-modal", "location-modal", "sort-modal"].forEach(id => {
   const el = document.getElementById(id);
   if (el) {
     el.addEventListener("click", (e) => {

@@ -401,9 +401,24 @@ def get_stats():
         }
 
 
+def detect_degrees(title: str | None, desc: str | None, category: str | None) -> list:
+    """Detect eligible pharmaceutical degrees (B.Pharm, M.Pharm, Pharm.D, D.Pharm) from job text."""
+    txt = f"{title or ''} {desc or ''} {category or ''}".lower()
+    degs = []
+    if re.search(r"\bb[\.\-\s]?pharm\b|\bbachelor\s+of\s+pharmacy\b", txt):
+        degs.append("B.Pharm")
+    if re.search(r"\bm[\.\-\s]?pharm\b|\bmaster\s+of\s+pharmacy\b", txt):
+        degs.append("M.Pharm")
+    if re.search(r"\bpharm[\.\-\s]?d\b|\bdoctor\s+of\s+pharmacy\b", txt):
+        degs.append("Pharm.D")
+    if re.search(r"\bd[\.\-\s]?pharm\b|\bdiploma\s+in\s+pharmacy\b", txt):
+        degs.append("D.Pharm")
+    return degs
+
+
 def query_jobs(category=None, fresher_only=False, verified_only=False,
                location=None, q=None, sort_by="newest", page=1, per_page=20,
-               source=None):
+               source=None, degree=None):
     where = ["is_active = 1"]
     params = []
 
@@ -420,9 +435,20 @@ def query_jobs(category=None, fresher_only=False, verified_only=False,
     if source:
         where.append("source = ?")
         params.append(source)
+    if degree:
+        deg = degree.lower().strip()
+        if deg == "bpharm":
+            where.append("(title LIKE '%b.pharm%' OR title LIKE '%bpharm%' OR title LIKE '%b-pharm%' OR title LIKE '%b. pharmacy%' OR title LIKE '%bachelor of pharmacy%' OR description_md LIKE '%b.pharm%' OR description_md LIKE '%bpharm%' OR description_md LIKE '%b-pharm%' OR description_md LIKE '%b. pharmacy%' OR description_md LIKE '%bachelor of pharmacy%')")
+        elif deg == "mpharm":
+            where.append("(title LIKE '%m.pharm%' OR title LIKE '%mpharm%' OR title LIKE '%m-pharm%' OR title LIKE '%m. pharmacy%' OR title LIKE '%master of pharmacy%' OR description_md LIKE '%m.pharm%' OR description_md LIKE '%mpharm%' OR description_md LIKE '%m-pharm%' OR description_md LIKE '%m. pharmacy%' OR description_md LIKE '%master of pharmacy%')")
+        elif deg == "pharmd":
+            where.append("(title LIKE '%pharm.d%' OR title LIKE '%pharmd%' OR title LIKE '%pharm-d%' OR title LIKE '%doctor of pharmacy%' OR description_md LIKE '%pharm.d%' OR description_md LIKE '%pharmd%' OR description_md LIKE '%pharm-d%' OR description_md LIKE '%doctor of pharmacy%')")
+        elif deg == "dpharm":
+            where.append("(title LIKE '%d.pharm%' OR title LIKE '%dpharm%' OR title LIKE '%d-pharm%' OR title LIKE '%diploma in pharmacy%' OR description_md LIKE '%d.pharm%' OR description_md LIKE '%dpharm%' OR description_md LIKE '%d-pharm%' OR description_md LIKE '%diploma in pharmacy%')")
+
     if q:
-        where.append("(title LIKE ? OR company LIKE ? OR email LIKE ? OR phone LIKE ? OR location LIKE ?)")
-        params.extend([f"%{q}%"] * 5)
+        where.append("(title LIKE ? OR company LIKE ? OR email LIKE ? OR phone LIKE ? OR location LIKE ? OR description_md LIKE ?)")
+        params.extend([f"%{q}%"] * 6)
 
     where_sql = "WHERE " + " AND ".join(where)
     offset = (page - 1) * per_page
@@ -446,11 +472,17 @@ def query_jobs(category=None, fresher_only=False, verified_only=False,
             params + [per_page, offset],
         ).fetchall()
 
+        job_list = []
+        for r in rows:
+            d = dict(r)
+            d["degrees"] = detect_degrees(d.get("title"), d.get("description_md"), d.get("category"))
+            job_list.append(d)
+
         return {
             "total": total,
             "page": page,
             "per_page": per_page,
-            "jobs": [dict(r) for r in rows],
+            "jobs": job_list,
         }
 
 

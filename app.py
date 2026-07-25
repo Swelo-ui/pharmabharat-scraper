@@ -66,6 +66,7 @@ def download_apk():
 @app.route("/api/jobs")
 def api_jobs():
     category = request.args.get("category") or None
+    degree = request.args.get("degree") or None
     fresher_only = request.args.get("fresher_only", "false").lower() == "true"
     verified_only = request.args.get("verified_only", "false").lower() == "true"
     location = request.args.get("location") or None
@@ -77,6 +78,7 @@ def api_jobs():
 
     result = db.query_jobs(
         category=category,
+        degree=degree,
         fresher_only=fresher_only,
         verified_only=verified_only,
         location=location,
@@ -133,6 +135,7 @@ def api_sources():
 def api_export():
     fmt = request.args.get("format", "csv").lower()
     category = request.args.get("category") or None
+    degree = request.args.get("degree") or None
     fresher_only = request.args.get("fresher_only", "false").lower() == "true"
     verified_only = request.args.get("verified_only", "false").lower() == "true"
     q = request.args.get("q") or None
@@ -140,6 +143,7 @@ def api_export():
 
     result = db.query_jobs(
         category=category,
+        degree=degree,
         fresher_only=fresher_only,
         verified_only=verified_only,
         location=None,
