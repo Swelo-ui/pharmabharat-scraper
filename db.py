@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     scraped_at      INTEGER,             -- unix timestamp, last detail scrape
     notified        INTEGER DEFAULT 0,   -- notification bhej di kya
     email           TEXT,                -- extracted contact email
-    phone           TEXT                 -- extracted phone / whatsapp number
+    phone           TEXT,                -- extracted phone / whatsapp number
+    source          TEXT DEFAULT 'pharmabharat'  -- which site: pharmabharat / pharmarecruiter
 );
 
 CREATE INDEX IF NOT EXISTS idx_category ON jobs(category);
@@ -134,6 +135,7 @@ def init_db():
             ("scraped_at", "ALTER TABLE jobs ADD COLUMN scraped_at INTEGER"),
             ("is_active",  "ALTER TABLE jobs ADD COLUMN is_active INTEGER DEFAULT 1"),
             ("banner_url", "ALTER TABLE jobs ADD COLUMN banner_url TEXT"),
+            ("source",     "ALTER TABLE jobs ADD COLUMN source TEXT DEFAULT 'pharmabharat'"),
         ]
         for col_name, sql in migrations:
             if col_name not in cols:
@@ -144,21 +146,44 @@ def init_db():
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_active_cat_fresher ON jobs(is_active, category, is_fresher_friendly)"
         )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_source ON jobs(source)"
+        )
     # Auto-extract email/phone and banner images for existing jobs
     backfill_contacts()
     backfill_banners()
+
+
+def _title_exists(conn, title: str) -> bool:
+    """Check if a job with same title (case-insensitive) already exists."""
+    if not title:
+        return False
+    row = conn.execute(
+        "SELECT slug FROM jobs WHERE lower(title) = lower(?) LIMIT 1", (title.strip(),)
+    ).fetchone()
+    return row is not None
 
 
 def upsert_job(job: dict) -> bool:
     """
     Insert a job if it's new. Returns True if it was a NEW job
     (so caller can decide to notify), False if it already existed.
+
+    Deduplication:
+    - slug-based: same URL slug = same job (always skip)
+    - title-based: same title from any source = duplicate (skip)
+      Prefer the first source that inserted it (usually pharmabharat).
     """
     with get_conn() as conn:
+        # Check by slug first
         existing = conn.execute(
             "SELECT slug FROM jobs WHERE slug = ?", (job["slug"],)
         ).fetchone()
         if existing:
+            return False
+
+        # Title-based dedup: agar same title pehle se ho (any source), skip karo
+        if _title_exists(conn, job.get("title")):
             return False
 
         conn.execute(
@@ -168,8 +193,8 @@ def upsert_job(job: dict) -> bool:
                 is_fresher, is_fresher_friendly, salary, location,
                 application_type, verified, posted_date_raw,
                 description_md, detail_scraped, first_seen_at, scraped_at,
-                notified, is_active, email, phone, banner_url
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                notified, is_active, email, phone, banner_url, source
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 job["slug"],
@@ -194,6 +219,7 @@ def upsert_job(job: dict) -> bool:
                 job.get("email"),
                 job.get("phone"),
                 job.get("banner_url"),
+                job.get("source", "pharmabharat"),
             ),
         )
         return True
@@ -276,17 +302,23 @@ def get_stats():
         verified = conn.execute("SELECT COUNT(*) as c FROM jobs WHERE verified = 1 AND is_active = 1").fetchone()["c"]
         categories = conn.execute("SELECT COUNT(DISTINCT category) as c FROM jobs WHERE category IS NOT NULL AND is_active = 1").fetchone()["c"]
         last_job = conn.execute("SELECT MAX(first_seen_at) as m FROM jobs WHERE is_active = 1").fetchone()["m"]
+        # Source-wise counts
+        pb_count = conn.execute("SELECT COUNT(*) as c FROM jobs WHERE is_active = 1 AND (source = 'pharmabharat' OR source IS NULL)").fetchone()["c"]
+        pr_count = conn.execute("SELECT COUNT(*) as c FROM jobs WHERE is_active = 1 AND source = 'pharmarecruiter'").fetchone()["c"]
         return {
             "total": total,
             "fresher": fresher,
             "verified": verified,
             "categories": categories,
-            "last_updated": last_job
+            "last_updated": last_job,
+            "pharmabharat_count": pb_count,
+            "pharmarecruiter_count": pr_count,
         }
 
 
 def query_jobs(category=None, fresher_only=False, verified_only=False,
-               location=None, q=None, sort_by="newest", page=1, per_page=20):
+               location=None, q=None, sort_by="newest", page=1, per_page=20,
+               source=None):
     where = ["is_active = 1"]
     params = []
 
@@ -300,6 +332,9 @@ def query_jobs(category=None, fresher_only=False, verified_only=False,
     if location:
         where.append("location LIKE ?")
         params.append(f"%{location}%")
+    if source:
+        where.append("source = ?")
+        params.append(source)
     if q:
         where.append("(title LIKE ? OR company LIKE ? OR email LIKE ? OR phone LIKE ? OR location LIKE ?)")
         params.extend([f"%{q}%"] * 5)

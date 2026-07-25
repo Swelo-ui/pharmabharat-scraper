@@ -55,12 +55,21 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/download/apk")
+@app.route("/PharmaBharatPro.apk")
+def download_apk():
+    from flask import send_from_directory
+    apk_dir = os.path.dirname(os.path.abspath(__file__))
+    return send_from_directory(apk_dir, "PharmaBharatPro.apk", as_attachment=True)
+
+
 @app.route("/api/jobs")
 def api_jobs():
     category = request.args.get("category") or None
     fresher_only = request.args.get("fresher_only", "false").lower() == "true"
     verified_only = request.args.get("verified_only", "false").lower() == "true"
     location = request.args.get("location") or None
+    source = request.args.get("source") or None
     q = request.args.get("q") or None
     sort_by = request.args.get("sort_by", "newest")
     page = int(request.args.get("page", 1))
@@ -71,6 +80,7 @@ def api_jobs():
         fresher_only=fresher_only,
         verified_only=verified_only,
         location=location,
+        source=source,
         q=q,
         sort_by=sort_by,
         page=page,
@@ -108,6 +118,17 @@ def api_locations():
     return jsonify(db.distinct_locations())
 
 
+@app.route("/api/sources")
+def api_sources():
+    """Per-source job counts — for dashboard display."""
+    stats = _get_cached_stats()
+    return jsonify({
+        "pharmabharat": stats.get("pharmabharat_count", 0),
+        "pharmarecruiter": stats.get("pharmarecruiter_count", 0),
+        "total": stats.get("total", 0),
+    })
+
+
 @app.route("/api/export")
 def api_export():
     fmt = request.args.get("format", "csv").lower()
@@ -115,36 +136,40 @@ def api_export():
     fresher_only = request.args.get("fresher_only", "false").lower() == "true"
     verified_only = request.args.get("verified_only", "false").lower() == "true"
     q = request.args.get("q") or None
+    source = request.args.get("source") or None
 
     result = db.query_jobs(
         category=category,
         fresher_only=fresher_only,
         verified_only=verified_only,
+        location=None,
         q=q,
+        source=source,
         page=1,
-        per_page=5000,
+        per_page=50000,
     )
     jobs = result["jobs"]
 
     if fmt == "json":
         return jsonify(jobs)
 
-    # Return CSV
+    # Return CSV with UTF-8 BOM so Excel opens it cleanly with correct encoding
     output = io.StringIO()
+    output.write("\ufeff")  # UTF-8 BOM for Microsoft Excel
     writer = csv.DictWriter(
         output,
         fieldnames=[
-            "title", "company", "category", "experience_raw", "salary",
-            "location", "application_type", "is_fresher_friendly",
-            "verified", "url", "posted_date_raw", "email", "phone",
+            "title", "company", "category", "location", "experience_raw", "salary",
+            "application_type", "is_fresher_friendly", "verified", "source",
+            "url", "posted_date_raw", "email", "phone",
         ],
         extrasaction="ignore",
     )
     writer.writeheader()
     writer.writerows(jobs)
 
-    response = Response(output.getvalue(), mimetype="text/csv")
-    response.headers["Content-Disposition"] = "attachment; filename=pharmabharat_jobs.csv"
+    response = Response(output.getvalue(), mimetype="text/csv; charset=utf-8-sig")
+    response.headers["Content-Disposition"] = "attachment; filename=pharmabharat_jobs_export.csv"
     return response
 
 
@@ -162,7 +187,7 @@ def _run_scrape_bg(pages):
     global is_scraping, last_scrape_status, _adaptive_pages
     try:
         is_scraping = True
-        total = 1 + len(scraper.CATEGORY_SLUGS)  # homepage + all categories
+        total = 1 + len(scraper.CATEGORY_SLUGS) + 1  # pharmabharat homepage + categories + pharmarecruiter
         last_scrape_status["running"] = True
         last_scrape_status["error"] = None
         last_scrape_status["scraped_so_far"] = 0
@@ -171,7 +196,7 @@ def _run_scrape_bg(pages):
         last_scrape_status["categories_done"] = 0
         last_scrape_status["total_targets"] = total
 
-        new_slugs = scraper.scrape_recent(pages=pages, deep=True, progress_cb=_progress_cb)
+        new_slugs = scraper.scrape_all_recent(pages=pages, deep=True, progress_cb=_progress_cb)
         last_scrape_status["new_jobs"] = len(new_slugs)
 
         # Invalidate stats cache after successful scrape

@@ -57,6 +57,11 @@ def send_telegram_message(text: str) -> bool:
 
 def format_job_message(job: dict) -> str:
     fresher_tag = "🟢 FRESHER" if job.get("is_fresher_friendly") else ""
+    source = job.get("source", "pharmabharat")
+    if source == "pharmarecruiter":
+        source_tag = "🌐 PharmaRecruiter.in"
+    else:
+        source_tag = "💊 PharmaBharat.com"
     parts = [
         f"🆕 <b>{job.get('title') or 'New Job'}</b>",
         f"🏢 {job.get('company') or '-'}",
@@ -64,8 +69,11 @@ def format_job_message(job: dict) -> str:
     ]
     if job.get("salary"):
         parts.append(f"💰 {job['salary']}")
+    if job.get("location"):
+        parts.append(f"📍 {job['location']}")
     if job.get("category"):
         parts.append(f"🏷 {job['category'].replace('-', ' ').title()}")
+    parts.append(f"📡 {source_tag}")
     parts.append(f"🔗 <a href=\"{job['url']}\">Apply Now</a>")
     return "\n".join(parts)
 

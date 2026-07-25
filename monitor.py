@@ -1,13 +1,20 @@
 """
 monitor.py -- Yeh script hamesha chalti rehti hai background mein,
-har N minute mein naye jobs check karti hai aur mil jaye to Telegram
-par bhej deti hai.
+har N minute mein DONO sites (PharmaBharat + PharmaRecruiter) ke
+naye jobs check karti hai aur mil jaye to Telegram par bhej deti hai.
+
+App band ho ya offline ho — yeh script independently chalti rehti hai
+aur notifications aate rehte hain.
 
 Chalane ka tarika:
     python monitor.py
 
-Rokne ke liye Ctrl+C. Server/laptop pe 24x7 chalana hai to systemd
-service ya `nohup python monitor.py &` use karo (README mein detail).
+Rokne ke liye Ctrl+C.
+Server/laptop pe 24x7 chalana hai:
+  - Windows: pythonw monitor.py  (background, no console window)
+  - Linux/Mac: nohup python monitor.py &
+  - Startup pe chalane ke liye: run_monitor.bat double-click karo
+  - Ya Windows Task Scheduler mein add karo (README dekho)
 """
 
 import logging
@@ -17,7 +24,14 @@ import scraper
 import notifier
 import db
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("monitor.log", encoding="utf-8"),
+    ]
+)
 log = logging.getLogger("monitor")
 
 # Smart backoff config
@@ -31,11 +45,12 @@ _consecutive_empty = 0  # how many syncs in a row returned 0 new jobs
 def job_cycle():
     global _consecutive_empty
 
-    log.info("═══ Checking PharmaBharat for new jobs... ═══")
+    log.info("═══ Checking PharmaBharat + PharmaRecruiter for new jobs... ═══")
     try:
-        new_slugs = scraper.scrape_recent(pages=LISTING_PAGES_TO_CHECK, deep=True)
+        # Scrape DONO sites ek sath — deduplication automatic hogi
+        new_slugs = scraper.scrape_all_recent(pages=LISTING_PAGES_TO_CHECK, deep=True)
         count = len(new_slugs)
-        log.info("✓ Found %s new job(s).", count)
+        log.info("✓ Found %s new job(s) across both sites.", count)
 
         sent = notifier.notify_new_jobs()
         log.info("✓ Sent %s notification(s).", sent)
@@ -66,7 +81,12 @@ def _next_interval():
 
 
 if __name__ == "__main__":
-    log.info("Monitor started. Initial interval: %s min.", MIN_INTERVAL)
+    log.info("="*60)
+    log.info(" PharmaBharat + PharmaRecruiter Monitor Started")
+    log.info(" Sources: pharmabharat.com + pharmarecruiter.in/freshers-jobs")
+    log.info(" Interval: %s-%s min | Pages: %s | Notifications: Telegram",
+             MIN_INTERVAL, MAX_INTERVAL, LISTING_PAGES_TO_CHECK)
+    log.info("="*60)
     db.init_db()
 
     while True:

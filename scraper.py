@@ -41,6 +41,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 log = logging.getLogger("scraper")
 
 BASE_URL = "https://pharmabharat.com"
+PR_BASE_URL = "https://pharmarecruiter.in/freshers-jobs/"
 
 # List of realistic Browser User-Agents for rotation
 USER_AGENTS = [
@@ -543,6 +544,259 @@ def scrape_full(max_pages=764, delay=2.5, deep=False, category=None):
     return total_new
 
 
+# ─── PharmaRecruiter.in Scraper ────────────────────────────────────────────────
+
+# WordPress category-to-slug mapping for pharmarecruiter.in CSS classes
+_PR_CAT_MAP = {
+    "category-walk-in-interviews": "walk-in-interviews",
+    "category-pharmacovigilance-jobs": "pharmacovigilance-jobs",
+    "category-qc-jobs": "quality-control-jobs",
+    "category-qa-jobs": "quality-assurance-jobs",
+    "category-clinical-research-jobs": "clinical-research-jobs",
+    "category-rd-jobs": "research-and-development-jobs",
+    "category-medical-coding-jobs": "medical-coding-jobs",
+    "category-regulatory-affairs-jobs": "regulatory-affairs-jobs",
+    "category-production-jobs": "production-jobs",
+    "category-internship": "internships",
+}
+
+
+def _pr_extract_category(article_classes: list) -> str | None:
+    """WordPress article CSS classes se category string nikalo."""
+    for cls in article_classes:
+        if cls in _PR_CAT_MAP:
+            return _PR_CAT_MAP[cls]
+    # fallback: koi bhi category- class
+    for cls in article_classes:
+        if cls.startswith("category-") and cls not in ("category-jobs", "category-freshers-jobs"):
+            return cls.replace("category-", "").replace("-", " ").title()
+    return "freshers-jobs"
+
+
+def _pr_company_from_title(title: str) -> str | None:
+    """Title se company name extract karne ki heuristic."""
+    if not title:
+        return None
+    # Patterns like: "Jobs at XYZ Pharma", "XYZ Pharma Walk-In", etc.
+    patterns = [
+        r"(?:Jobs?\s+at|Hiring(?:\s+at)?|Walk-[Ii]n\s+(?:Interview\s+)?at|Opening(?:s)?\s+at)\s+([A-Z][\w\s&().,'\-]+?)(?:\s*[-|–—]|\s+for\s|\s+in\s|\s+Pharma|\s+Walk|$)",
+        r"^([A-Z][\w\s&().,']+?)\s+(?:Walk-[Ii]n|Job|Hiring|Opening|Intern|Recruit|Drive)",
+    ]
+    for pat in patterns:
+        m = re.search(pat, title)
+        if m:
+            cname = m.group(1).strip().rstrip(",;:")
+            if len(cname) >= 3 and _is_likely_company(cname):
+                return cname
+    return None
+
+
+def parse_pr_listing_page(html, source="pharmarecruiter"):
+    """
+    PharmaRecruiter.in ka WordPress listing page parse karta hai.
+    Each <article> tag ek job hai:
+      - Title:   h2.entry-title > a (text + href)
+      - Date:    time.entry-date[datetime]
+      - Banner:  div.post-image img
+      - Category: article CSS classes
+    """
+    if not html:
+        return []
+
+    soup = BeautifulSoup(html, "lxml")
+    jobs = []
+    seen_hrefs = set()
+
+    articles = soup.find_all("article")
+    for article in articles:
+        # Title & URL
+        title_tag = article.select_one("h2.entry-title a")
+        if not title_tag:
+            continue
+        title = title_tag.get_text(strip=True)
+        href = title_tag.get("href", "")
+        if not href or href in seen_hrefs:
+            continue
+        # Skip if empty or not a real post URL
+        if not href.startswith("http"):
+            continue
+        seen_hrefs.add(href)
+
+        # Date
+        time_tag = article.select_one("time.entry-date")
+        date_raw = None
+        if time_tag:
+            dt_attr = time_tag.get("datetime", "")
+            # datetime attr format: 2026-07-25T10:52:55+05:30 → parse to "Month DD, YYYY"
+            try:
+                from datetime import datetime as _dt
+                d = _dt.fromisoformat(dt_attr[:19])
+                date_raw = d.strftime("%B %d, %Y")
+            except Exception:
+                date_raw = time_tag.get_text(strip=True)
+
+        # Banner image
+        banner_url = None
+        post_img_div = article.select_one("div.post-image img")
+        if post_img_div:
+            banner_url = (
+                post_img_div.get("data-full-url") or
+                post_img_div.get("data-orig-file") or
+                post_img_div.get("data-lazy-src") or
+                post_img_div.get("data-src") or
+                post_img_div.get("src")
+            )
+            if banner_url:
+                # Try to get largest image from srcset
+                srcset = post_img_div.get("srcset", "")
+                if srcset:
+                    # Pick the last (largest) entry from srcset
+                    parts = [p.strip().split(" ") for p in srcset.split(",") if p.strip()]
+                    if parts:
+                        # Find the largest width
+                        best = None
+                        best_w = 0
+                        for p in parts:
+                            if len(p) >= 2:
+                                try:
+                                    w = int(p[1].rstrip("w"))
+                                    if w > best_w:
+                                        best_w = w
+                                        best = p[0]
+                                except Exception:
+                                    pass
+                        if best:
+                            banner_url = best
+
+        # Category
+        article_classes = article.get("class", [])
+        category = _pr_extract_category(article_classes)
+
+        # Walk-in detection from title/category
+        title_lower = title.lower()
+        app_type = None
+        is_walkin = (
+            "walk-in" in title_lower or "walk in" in title_lower or
+            "walkin" in title_lower or
+            category == "walk-in-interviews"
+        )
+        if is_walkin:
+            app_type = "Walk In Interview"
+
+        # Fresher detection from title
+        is_fresher = bool(re.search(r"(?i)\bfreshers?\b", title))
+        is_fresher_friendly = is_fresher
+
+        # Company heuristic from title
+        company = _pr_company_from_title(title)
+
+        # Location from title
+        location_found = None
+        title_lower_str = title.lower()
+        for kw in LOCATION_KEYWORDS:
+            if kw in title_lower_str:
+                location_found = kw.title()
+                break
+
+        # Skip expired jobs
+        # Note: date_raw is the POST published date, not the walk-in event date.
+        # Use 30-day rule for all PR jobs to avoid skipping recently-posted walk-in listings.
+        if is_date_expired(date_raw.replace(",", "") if date_raw else None, is_walkin=False):
+            log.info("PR: Skipping expired job (%s): %s", date_raw, title)
+            continue
+
+        slug = _slug_from_url(href)
+        # Prefix slug with 'pr-' to avoid collisions with pharmabharat slugs
+        if not slug.startswith("pr-"):
+            slug = f"pr-{slug}"
+
+        jobs.append({
+            "slug": slug,
+            "url": href,
+            "title": title,
+            "company": company,
+            "category": category,
+            "experience_raw": None,
+            "is_fresher": is_fresher,
+            "is_fresher_friendly": is_fresher_friendly,
+            "salary": None,
+            "location": location_found,
+            "application_type": app_type,
+            "verified": False,
+            "posted_date_raw": date_raw,
+            "email": None,
+            "phone": None,
+            "banner_url": banner_url,
+            "source": source,
+        })
+
+    return jobs
+
+
+# Track dead PR pages in current run
+_pr_dead_pages: set = set()
+
+
+def scrape_pr_recent(pages=1, delay=1.5, deep=True, progress_cb=None):
+    """
+    PharmaRecruiter.in ka freshers-jobs section scrape karta hai.
+    Returns: list of new slugs.
+    """
+    db.init_db()
+    new_slugs = []
+    scraped_count = 0
+
+    if progress_cb:
+        progress_cb(scraped_count, len(new_slugs), "pharmarecruiter-freshers", 0)
+
+    for page in range(1, pages + 1):
+        if page == 1:
+            url = PR_BASE_URL
+        else:
+            url = f"{PR_BASE_URL.rstrip('/')}/page/{page}/"
+
+        html = fetch(url)
+        if not html:
+            log.warning("PR: fetch failed for page %s", page)
+            break
+
+        jobs = parse_pr_listing_page(html)
+        if not jobs:
+            log.info("PR: No jobs on page %s, stopping.", page)
+            break
+
+        for job in jobs:
+            scraped_count += 1
+            is_new = db.upsert_job(job)
+            if is_new:
+                new_slugs.append(job["slug"])
+                log.info("PR NEW job: %s (%s)", job["title"], job["url"])
+                if deep:
+                    _sleep(delay)
+                    detail_html = fetch(job["url"])
+                    parsed = parse_detail_page(detail_html)
+                    if parsed:
+                        db.update_detail(job["slug"], parsed["description_md"], parsed["extra"])
+            if progress_cb:
+                progress_cb(scraped_count, len(new_slugs), "pharmarecruiter-freshers", 0)
+        _sleep(delay)
+
+    return new_slugs
+
+
+def scrape_all_recent(pages=1, delay=1.2, deep=True, progress_cb=None):
+    """
+    Dono sites (PharmaBharat + PharmaRecruiter) scrape karta hai.
+    Deduplication DB level par automatically hoti hai (title match).
+    Returns: combined list of new slugs.
+    """
+    # PharmaBharat scrape
+    pb_new = scrape_recent(pages=pages, delay=delay, deep=deep, progress_cb=progress_cb)
+    # PharmaRecruiter scrape (freshers page)
+    pr_new = scrape_pr_recent(pages=pages, delay=delay, deep=deep, progress_cb=progress_cb)
+    return pb_new + pr_new
+
+
 def debug_dump(url=BASE_URL):
     """Ek page fetch karke raw parsed jobs print karta hai -- selectors/
     regex tweak karne ke liye use karo agar extraction sahi na lage."""
@@ -553,14 +807,25 @@ def debug_dump(url=BASE_URL):
     print(f"\nTotal parsed: {len(jobs)}")
 
 
+def debug_dump_pr(url=PR_BASE_URL):
+    """PharmaRecruiter.in ka ek page fetch karke raw parsed jobs print karta hai."""
+    html = fetch(url)
+    jobs = parse_pr_listing_page(html)
+    for j in jobs:
+        print(j)
+    print(f"\nTotal parsed: {len(jobs)}")
+
+
 if __name__ == "__main__":
     import sys
 
     if len(sys.argv) > 1 and sys.argv[1] == "debug":
         debug_dump()
+    elif len(sys.argv) > 1 and sys.argv[1] == "debug_pr":
+        debug_dump_pr()
     elif len(sys.argv) > 1 and sys.argv[1] == "full":
         n = scrape_full()
         print(f"Full scrape done. New jobs: {n}")
     else:
-        n = scrape_recent(pages=2)
-        print(f"Recent scrape done. New jobs: {len(n)}")
+        n = scrape_all_recent(pages=2)
+        print(f"Recent scrape done (both sites). New jobs: {len(n)}")

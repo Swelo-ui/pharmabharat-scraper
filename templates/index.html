@@ -931,6 +931,33 @@
   .job-card.accent-verified { border-left-color: var(--verified); }
   .job-card.accent-walkin   { border-left-color: var(--amber); }
 
+  /* Source badge */
+  .badge-source-pb { background: rgba(13,148,136,0.12); color: var(--primary-deep); border: 1px solid rgba(13,148,136,0.25); }
+  .badge-source-pr { background: rgba(37,99,235,0.1); color: #1d4ed8; border: 1px solid rgba(37,99,235,0.22); }
+  [data-theme="dark"] .badge-source-pr { color: #93c5fd; }
+
+  /* Card Banner Thumbnail (feed card) */
+  .card-banner-thumb {
+    width: 100%;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: var(--surface-hover);
+    max-height: 160px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .card-banner-thumb img {
+    width: 100%;
+    max-height: 160px;
+    object-fit: cover;
+    object-position: top;
+    display: block;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+
   /* ── Modal Tabs ─────────────────────────────────────────────────── */
   .modal-tabs {
     display: flex;
@@ -1552,11 +1579,16 @@ function showToast(msg) {
   console.log("[Status]:", msg);
 }
 
-// Universal Share Function (Supports Web Share API + Clipboard Copy + WhatsApp fallback)
+// Universal Share Function (Supports Native Android Intent + Web Share API + Clipboard Copy + WhatsApp fallback)
 function shareJob(title, url, e) {
   if (e) e.stopPropagation();
   const cleanTitle = (title || "Pharma Job").replace(/'/g, "");
   const fullMsg = `PharmaBharat Job Alert:\n${cleanTitle}\n\nApply/View details here:\n${url}`;
+
+  if (window.AndroidNative && window.AndroidNative.shareText) {
+    window.AndroidNative.shareText(cleanTitle, fullMsg);
+    return;
+  }
 
   if (navigator.share) {
     navigator.share({
@@ -1883,9 +1915,15 @@ function renderJobs(data) {
               ${job.verified ? '<span class="badge badge-verified"><i data-lucide="shield-check" style="width:11px;height:11px;"></i> VERIFIED</span>' : ''}
               ${job.application_type && (job.application_type.toLowerCase().includes("virtual") || job.application_type.toLowerCase().includes("video") || job.application_type.toLowerCase().includes("telephonic") || job.application_type.toLowerCase().includes("online interview")) ? '<span class="badge badge-virtual"><i data-lucide="video" style="width:11px;height:11px;"></i> VIRTUAL INTERVIEW</span>' : ''}
               ${job.application_type && job.application_type.toLowerCase().includes("walk") && !job.application_type.toLowerCase().includes("virtual") ? '<span class="badge badge-walkin"><i data-lucide="user-check" style="width:11px;height:11px;"></i> WALK-IN</span>' : ''}
+              ${job.source === 'pharmarecruiter' ? '<span class="badge badge-source-pr"><i data-lucide="globe" style="width:10px;height:10px;"></i> PharmaRecruiter</span>' : ''}
             </div>
           </div>
         </div>
+
+        ${job.banner_url ? `
+        <div class="card-banner-thumb" onclick="event.stopPropagation(); openJobModal('${job.slug}')">
+          <img src="${job.banner_url}" alt="Job Banner" loading="lazy" onerror="this.parentElement.style.display='none'">
+        </div>` : ''}
 
         <div class="job-meta-grid">
           ${job.location ? `<span class="meta-pill"><i data-lucide="map-pin" style="width:13px;height:13px;color:var(--primary);"></i> ${job.location}</span>` : ''}
@@ -2041,8 +2079,9 @@ function openJobModal(slug) {
         const html = window.marked ? marked.parse(job.description_md) : job.description_md.replace(/\n/g,'<br>');
         document.getElementById("description-content").innerHTML = bannerHtml + html;
       } else {
+        const siteName = job.source === 'pharmarecruiter' ? 'PharmaRecruiter.in' : 'PharmaBharat';
         document.getElementById("description-content").innerHTML = bannerHtml +
-          `<p style="color:var(--ink-muted);">Full description not yet scraped. Click <strong>Apply Now</strong> to view on PharmaBharat.</p>`;
+          `<p style="color:var(--ink-muted);">Full description not yet scraped. Click <strong>Apply Now</strong> to view on ${siteName}.</p>`;
       }
 
       if (window.lucide) lucide.createIcons();
@@ -2235,7 +2274,7 @@ document.getElementById("next-btn").addEventListener("click", () => {
   state.page++; fetchJobs(); window.scrollTo({ top: 0, behavior: 'smooth' });
 });
 
-// Export CSV Action
+// Export CSV / Excel Action
 document.getElementById("export-csv-btn").addEventListener("click", () => {
   const params = new URLSearchParams({
     format: "csv",
@@ -2244,8 +2283,14 @@ document.getElementById("export-csv-btn").addEventListener("click", () => {
     verified_only: state.verified_only,
     q: state.q
   });
-  window.open(`/api/export?${params.toString()}`, "_blank");
-  showToast("Downloading CSV export...");
+  const exportUrl = `/api/export?${params.toString()}`;
+  showToast("Downloading Excel data file...");
+
+  if (window.AndroidNative && window.AndroidNative.downloadFile) {
+    window.AndroidNative.downloadFile(exportUrl, "pharmabharat_jobs_export.csv");
+  } else {
+    window.location.href = exportUrl;
+  }
 });
 
 // Trigger Live Scrape Sync Action
