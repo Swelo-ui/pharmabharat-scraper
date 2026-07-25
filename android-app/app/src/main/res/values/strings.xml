@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Pharmly Pro</string>
+    <string name="app_name">Pharmly</string>
     <string name="server_url">https://pharmabharat-scraper.onrender.com</string>
     <string name="no_internet">No Internet Connection</string>
     <string name="no_internet_desc">Please check your connection and tap retry.</string>

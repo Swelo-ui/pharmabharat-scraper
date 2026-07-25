@@ -42,7 +42,7 @@
         android:layout_alignParentBottom="true"
         android:layout_centerHorizontal="true"
         android:layout_marginBottom="24dp"
-        android:text="Powered by Pharmly Pro"
+        android:text="Powered by Pharmly"
         android:textColor="#94A3B8"
         android:textSize="12sp" />
 
