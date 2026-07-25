@@ -16,15 +16,20 @@
         android:theme="@style/Theme.PharmaBharat">
         
         <activity
-            android:name=".MainActivity"
+            android:name=".SplashActivity"
             android:exported="true"
-            android:configChanges="orientation|screenSize|keyboardHidden"
-            android:windowSoftInputMode="adjustResize">
+            android:theme="@style/Theme.AppCompat.NoActionBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:windowSoftInputMode="adjustResize" />
     </application>
 
 </manifest>

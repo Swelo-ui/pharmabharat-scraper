@@ -56,11 +56,13 @@ def index():
 
 
 @app.route("/download/apk")
+@app.route("/PharmlyPro.apk")
 @app.route("/PharmaBharatPro.apk")
 def download_apk():
     from flask import send_from_directory
     apk_dir = os.path.dirname(os.path.abspath(__file__))
-    return send_from_directory(apk_dir, "PharmaBharatPro.apk", as_attachment=True)
+    file_to_send = "PharmlyPro.apk" if os.path.exists(os.path.join(apk_dir, "PharmlyPro.apk")) else "PharmaBharatPro.apk"
+    return send_from_directory(apk_dir, file_to_send, as_attachment=True)
 
 
 @app.route("/api/jobs")

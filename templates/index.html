@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>PharmaBharat Tracker Pro | Live Medical & Pharma Jobs</title>
+<title>Pharmly — Pharma Jobs & Recruitment Intelligence</title>
+<link rel="icon" type="image/png" href="/static/images/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -1302,11 +1303,13 @@
 <header>
   <div class="header-container">
     <div class="top-bar">
-      <a href="#" class="brand">
-        <div class="brand-logo">P</div>
+      <a href="#" class="brand" style="display:flex; align-items:center; gap:10px; text-decoration:none;">
+        <img src="/static/images/app_icon.png" alt="Pharmly Logo" style="width:38px; height:38px; border-radius:10px; object-fit:cover; box-shadow:0 2px 8px rgba(0,0,0,0.12);">
         <div>
-          <div class="brand-title">PharmaBharat <span class="brand-tag">PRO</span></div>
-          <div class="brand-subtitle">Smart Medical & Pharma Jobs Feed</div>
+          <div class="brand-title" style="display:flex; align-items:center; gap:6px; font-size:1.15rem; font-weight:800; color:var(--ink);">
+            <span>Pharmly</span> <span class="brand-tag" style="background:linear-gradient(135deg, #0F766E, #0D9488); color:#FFFFFF; padding:2px 6px; border-radius:6px; font-size:0.65rem; font-weight:700;">PRO</span>
+          </div>
+          <div class="brand-subtitle" style="font-size:0.72rem; color:var(--ink-muted); font-weight:600;">Find Jobs. Grow Your Career.</div>
         </div>
       </a>
       <div class="header-actions">
@@ -1708,7 +1711,7 @@ function shareJobBySlug(slug, e) {
   const phone = (job && job.phone) ? job.phone.trim() : "";
   const shareUrl = (job && job.url) ? job.url : window.location.href;
 
-  let fullMsg = `PharmaBharat Job Alert:\n\nPosition: ${title}\n`;
+  let fullMsg = `Pharmly Job Alert:\n\nPosition: ${title}\n`;
   if (company) fullMsg += `Company: ${company}\n`;
   if (exp) fullMsg += `Experience: ${exp}\n`;
   if (loc) fullMsg += `Location: ${loc}\n`;
