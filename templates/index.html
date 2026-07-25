@@ -1701,46 +1701,62 @@ function showToast(msg) {
   }, 2200);
 }
 
-// Universal Share Function (Supports Professional Structured Layout + Android Intent + Web Share + WhatsApp)
-function shareJob(title, url, e) {
-  if (e) e.stopPropagation();
-  const job = (typeof currentModalJob !== 'undefined' && currentModalJob && currentModalJob.title === title) ? currentModalJob : null;
-  const cleanTitle = (title || "Pharma Job Opportunity").trim();
-  const company = (job && job.company) ? job.company : "";
-  const exp = (job && job.experience_raw) ? job.experience_raw : "";
-  const loc = (job && job.location) ? job.location : "";
-  const email = (job && job.email) ? job.email : "";
-  const phone = (job && job.phone) ? job.phone : "";
+// Cache of all loaded job objects by slug for instant rich sharing
+const allLoadedJobs = {};
 
-  let fullMsg = `PharmaBharat Job Alert:\n\nPosition: ${cleanTitle}\n`;
+// Universal Share Function (Supports Professional Structured Layout + Android Intent + Web Share + WhatsApp)
+function shareJobBySlug(slug, e) {
+  if (e) e.stopPropagation();
+  const job = (slug && allLoadedJobs[slug]) ? allLoadedJobs[slug] : (currentModalJob && currentModalJob.slug === slug ? currentModalJob : currentModalJob);
+  
+  const title = (job && job.title) ? job.title.trim() : "Pharma Job Opportunity";
+  const company = (job && job.company) ? job.company.trim() : "";
+  const exp = (job && job.experience_raw) ? job.experience_raw.trim() : "";
+  const loc = (job && job.location) ? job.location.trim() : "";
+  const email = (job && job.email) ? job.email.trim() : "";
+  const phone = (job && job.phone) ? job.phone.trim() : "";
+  const shareUrl = (job && job.url) ? job.url : window.location.href;
+
+  let fullMsg = `PharmaBharat Job Alert:\n\nPosition: ${title}\n`;
   if (company) fullMsg += `Company: ${company}\n`;
   if (exp) fullMsg += `Experience: ${exp}\n`;
   if (loc) fullMsg += `Location: ${loc}\n`;
   if (email || phone) fullMsg += `Contact: ${[email, phone].filter(Boolean).join(" / ")}\n`;
-  fullMsg += `\nApply / View Details Here:\n${url}`;
+  fullMsg += `\nApply / View Details Here:\n${shareUrl}`;
 
+  // 1. Android Native Share Sheet
   if (window.AndroidNative && window.AndroidNative.shareText) {
-    window.AndroidNative.shareText(cleanTitle, fullMsg);
+    window.AndroidNative.shareText(title, fullMsg);
     return;
   }
 
+  // 2. Web Share API
   if (navigator.share) {
     navigator.share({
-      title: cleanTitle,
+      title: title,
       text: fullMsg,
-      url: url
+      url: shareUrl
     }).catch(err => {
-      if (err.name !== 'AbortError') fallbackShare(fullMsg, url);
+      if (err.name !== 'AbortError') fallbackShare(fullMsg, shareUrl);
     });
   } else {
-    fallbackShare(fullMsg, url);
+    fallbackShare(fullMsg, shareUrl);
+  }
+}
+
+function shareJob(title, url, e) {
+  if (e) e.stopPropagation();
+  if (currentModalJob && currentModalJob.slug) {
+    shareJobBySlug(currentModalJob.slug, e);
+  } else {
+    shareJobBySlug('', e);
   }
 }
 
 function fallbackShare(text, url) {
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(url).then(() => {
-      alert("Link Copied!\nJob link copied to clipboard. You can now paste and share it anywhere.");
+    navigator.clipboard.writeText(text).then(() => {
+      showToast("Job details & link copied!");
     }).catch(() => {
       window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, "_blank");
     });
@@ -2048,6 +2064,9 @@ function renderJobs(data) {
     return;
   }
 
+  // Cache all loaded jobs by slug for rich sharing
+  jobs.forEach(j => { if (j && j.slug) allLoadedJobs[j.slug] = j; });
+
   container.innerHTML = jobs.map(job => {
     const isSaved = state.savedSlugs.includes(job.slug);
     const hasContact = job.email || job.phone;
@@ -2073,10 +2092,6 @@ function renderJobs(data) {
               ${job.is_fresher_friendly ? '<span class="badge badge-fresher"><i data-lucide="sparkles" style="width:11px;height:11px;"></i> FRESHER</span>' : ''}
               ${job.verified ? '<span class="badge badge-verified"><i data-lucide="shield-check" style="width:11px;height:11px;"></i> VERIFIED</span>' : ''}
               ${job.application_type && (job.application_type.toLowerCase().includes("virtual") || job.application_type.toLowerCase().includes("video") || job.application_type.toLowerCase().includes("telephonic") || job.application_type.toLowerCase().includes("online interview")) ? '<span class="badge badge-virtual"><i data-lucide="video" style="width:11px;height:11px;"></i> VIRTUAL INTERVIEW</span>' : ''}
-              ${job.application_type && job.application_type.toLowerCase().includes("walk") && !job.application_type.toLowerCase().includes("virtual") ? '<span class="badge badge-walkin"><i data-lucide="user-check" style="width:11px;height:11px;"></i> WALK-IN</span>' : ''}
-            </div>
-          </div>
-        </div>`></i> VIRTUAL INTERVIEW</span>' : ''}
               ${job.application_type && job.application_type.toLowerCase().includes("walk") && !job.application_type.toLowerCase().includes("virtual") ? '<span class="badge badge-walkin"><i data-lucide="user-check" style="width:11px;height:11px;"></i> WALK-IN</span>' : ''}
             </div>
           </div>
@@ -2116,7 +2131,7 @@ function renderJobs(data) {
               <button class="btn-action btn-bookmark ${isSaved ? 'saved' : ''}" data-slug="${job.slug}" onclick="toggleSave('${job.slug}', event)">
                 ${isSaved ? '<i data-lucide="bookmark-check" style="width:14px;height:14px;"></i> Saved' : '<i data-lucide="bookmark" style="width:14px;height:14px;"></i> Save'}
               </button>
-              <button class="btn-action" onclick="shareJob('${job.title}', '${job.url}', event)">
+              <button class="btn-action" onclick="shareJobBySlug('${job.slug}', event)">
                 <i data-lucide="share-2" style="width:14px;height:14px;"></i> Share
               </button>
             </div>
@@ -2352,8 +2367,8 @@ document.getElementById("close-sort-modal").addEventListener("click", () => {
   setNativeSwipeRefresh(true);
 });
 
-document.getElementById("modal-share-btn").addEventListener("click", () => {
-  if (currentModalJob) shareJob(currentModalJob.title, currentModalJob.url);
+document.getElementById("modal-share-btn").addEventListener("click", (e) => {
+  if (currentModalJob && currentModalJob.slug) shareJobBySlug(currentModalJob.slug, e);
 });
 
 document.getElementById("open-degree-modal").addEventListener("click", () => {
