@@ -56,26 +56,34 @@ def send_telegram_message(text: str) -> bool:
 
 
 def format_job_message(job: dict) -> str:
-    fresher_tag = "🟢 FRESHER" if job.get("is_fresher_friendly") else ""
+    fresher_tag = " [FRESHER]" if job.get("is_fresher_friendly") else ""
     source = job.get("source", "pharmabharat")
-    if source == "pharmarecruiter":
-        source_tag = "🌐 PharmaRecruiter.in"
-    else:
-        source_tag = "💊 PharmaBharat.com"
-    parts = [
-        f"🆕 <b>{job.get('title') or 'New Job'}</b>",
-        f"🏢 {job.get('company') or '-'}",
-        f"📌 {job.get('experience_raw') or '-'} {fresher_tag}",
+    source_tag = "PharmaRecruiter.in" if source == "pharmarecruiter" else "PharmaBharat.com"
+    
+    title = job.get('title') or 'New Pharmacy Job'
+    company = job.get('company') or 'Pharma Company'
+    exp = job.get('experience_raw') or 'Not specified'
+    loc = job.get('location') or 'Not specified'
+    salary = job.get('salary')
+    category = job.get('category', '').replace('-', ' ').title()
+    
+    lines = [
+        "<b>[PHARMLY JOB ALERT]</b>",
+        f"<b>{title}</b>",
+        f"Company: {company}",
+        f"Experience: {exp}{fresher_tag}",
     ]
-    if job.get("salary"):
-        parts.append(f"💰 {job['salary']}")
-    if job.get("location"):
-        parts.append(f"📍 {job['location']}")
-    if job.get("category"):
-        parts.append(f"🏷 {job['category'].replace('-', ' ').title()}")
-    parts.append(f"📡 {source_tag}")
-    parts.append(f"🔗 <a href=\"{job['url']}\">Apply Now</a>")
-    return "\n".join(parts)
+    if salary:
+        lines.append(f"Salary: {salary}")
+    if loc:
+        lines.append(f"Location: {loc}")
+    if category:
+        lines.append(f"Category: {category}")
+        
+    lines.append(f"Source: {source_tag}")
+    lines.append(f"Apply Link: <a href=\"{job['url']}\">View & Apply on Pharmly</a>")
+    lines.append("\n— Pharmly | Built for Pharmacy Freshers across India")
+    return "\n".join(lines)
 
 
 def notify_new_jobs():
