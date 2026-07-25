@@ -381,29 +381,41 @@
     flex-shrink: 0;
   }
 
+  #chip-fresher i, #chip-fresher svg { color: var(--fresher); }
+  #chip-verified i, #chip-verified svg { color: var(--verified); }
+  #chip-saved i, #chip-saved svg { color: var(--amber); }
+
   .chip.active {
     background: var(--primary);
-    color: #FFFFFF;
+    color: #FFFFFF !important;
     border-color: var(--primary);
     box-shadow: 0 2px 6px var(--primary-glow);
   }
 
   .chip.active-fresher {
     background: var(--fresher);
-    color: #FFFFFF;
+    color: #FFFFFF !important;
     border-color: var(--fresher);
   }
 
   .chip.active-verified {
     background: var(--verified);
-    color: #FFFFFF;
+    color: #FFFFFF !important;
     border-color: var(--verified);
   }
 
   .chip.active-saved {
     background: var(--amber);
-    color: #FFFFFF;
+    color: #FFFFFF !important;
     border-color: var(--amber);
+  }
+
+  .chip.active i, .chip.active svg,
+  .chip.active-fresher i, .chip.active-fresher svg,
+  .chip.active-verified i, .chip.active-verified svg,
+  .chip.active-saved i, .chip.active-saved svg {
+    color: #FFFFFF !important;
+    stroke: #FFFFFF !important;
   }
 
   /* Responsive Select Dropdowns Grid */
@@ -1331,13 +1343,13 @@
       <i data-lucide="layers"></i> <span class="chip-text">All</span>
     </div>
     <div class="chip" id="chip-fresher">
-      <i data-lucide="sparkles" style="color:var(--fresher);"></i> <span class="chip-text">Fresher</span>
+      <i data-lucide="sparkles"></i> <span class="chip-text">Fresher</span>
     </div>
     <div class="chip" id="chip-verified">
-      <i data-lucide="shield-check" style="color:var(--verified);"></i> <span class="chip-text">Verified</span>
+      <i data-lucide="shield-check"></i> <span class="chip-text">Verified</span>
     </div>
     <div class="chip" id="chip-saved">
-      <i data-lucide="bookmark" style="color:var(--amber);"></i> <span class="chip-text">Saved (<span id="saved-count">0</span>)</span>
+      <i data-lucide="bookmark"></i> <span class="chip-text">Saved (<span id="saved-count">0</span>)</span>
     </div>
   </div>
 
@@ -1915,7 +1927,6 @@ function renderJobs(data) {
               ${job.verified ? '<span class="badge badge-verified"><i data-lucide="shield-check" style="width:11px;height:11px;"></i> VERIFIED</span>' : ''}
               ${job.application_type && (job.application_type.toLowerCase().includes("virtual") || job.application_type.toLowerCase().includes("video") || job.application_type.toLowerCase().includes("telephonic") || job.application_type.toLowerCase().includes("online interview")) ? '<span class="badge badge-virtual"><i data-lucide="video" style="width:11px;height:11px;"></i> VIRTUAL INTERVIEW</span>' : ''}
               ${job.application_type && job.application_type.toLowerCase().includes("walk") && !job.application_type.toLowerCase().includes("virtual") ? '<span class="badge badge-walkin"><i data-lucide="user-check" style="width:11px;height:11px;"></i> WALK-IN</span>' : ''}
-              ${job.source === 'pharmarecruiter' ? '<span class="badge badge-source-pr"><i data-lucide="globe" style="width:10px;height:10px;"></i> PharmaRecruiter</span>' : ''}
             </div>
           </div>
         </div>
@@ -2076,8 +2087,13 @@ function openJobModal(slug) {
 
       // ── Description Tab ──
       if (job.description_md) {
-        const html = window.marked ? marked.parse(job.description_md) : job.description_md.replace(/\n/g,'<br>');
-        document.getElementById("description-content").innerHTML = bannerHtml + html;
+        let cleanMd = job.description_md
+          .replace(/(?:\n*#*\s*Contents\s*\n+)(?:\s*[\*\-]\s*\[?\d+\.?\d*.*?\]?\(#.*?\)\s*\n?)+/gi, "\n\n")
+          .replace(/(?:\n*#*\s*Contents\s*\n+)(?:\s*\d+\.\s*\[?.*?\]?\(#.*?\)\s*\n?)+/gi, "\n\n");
+        const html = window.marked ? marked.parse(cleanMd) : cleanMd.replace(/\n/g,'<br>');
+        const descEl = document.getElementById("description-content");
+        descEl.innerHTML = bannerHtml + html;
+        descEl.querySelectorAll("#toc_container, .toc_container, [id*='toc'], [class*='ez-toc']").forEach(el => el.remove());
       } else {
         const siteName = job.source === 'pharmarecruiter' ? 'PharmaRecruiter.in' : 'PharmaBharat';
         document.getElementById("description-content").innerHTML = bannerHtml +

@@ -395,17 +395,24 @@ def parse_detail_page(html):
                     banner_url = src_val
                     break
 
-    # REMOVE ALL AD ELEMENTS, IFRAMES, AND SCRIPT BLOCKS BEFORE CONVERTING TO MARKDOWN
+    # REMOVE ALL AD ELEMENTS, IFRAMES, TABLE OF CONTENTS (TOC), AND SCRIPT BLOCKS BEFORE CONVERTING TO MARKDOWN
     ad_selectors = [
         "ins", "iframe", "script", "style", ".adsbygoogle", ".ad", ".ads",
         ".advertisement", ".sharedaddy", ".wp-block-embed", ".code-block",
-        "div[class*='ad-']", "div[class*='ads']", ".jp-relatedposts"
+        "div[class*='ad-']", "div[class*='ads']", ".jp-relatedposts",
+        "#toc_container", ".toc_container", ".ez-toc-container", ".ez-toc-v2_0_69",
+        "#ez-toc-container", "div[id*='toc']", "div[class*='toc']", ".table-of-contents",
+        "nav[class*='toc']", ".ez-toc-title-container", ".ez-toc-widget-container"
     ]
     for sel in ad_selectors:
         for tag in container.select(sel):
             tag.decompose()
 
     markdown = md(str(container), heading_style="ATX")
+    # Clean TOC table of contents markdown block if present
+    markdown = re.sub(r"(?i)\n*#*\s*Contents\s*\n+(\s*[\*\-]\s*\[?\d+\.?\d*.*?\]?\(#.*?\)\s*\n?)+", "\n\n", markdown)
+    markdown = re.sub(r"(?i)\n*#*\s*Contents\s*\n+(\s*\d+\.\s*\[?.*?\]?\(#.*?\)\s*\n?)+", "\n\n", markdown)
+
     # trailing share/ad/related-jobs section hata do agar mila
     cut_markers = ["Share This Job", "RECENT JOBS", "Advertisement", "Related Jobs"]
     for marker in cut_markers:
