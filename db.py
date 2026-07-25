@@ -7,6 +7,8 @@ sab kuch ek file (jobs.db) mein store hota hai.
 
 import sqlite3
 import time
+import re
+from datetime import datetime
 from contextlib import contextmanager
 
 DB_PATH = "jobs.db"
@@ -26,6 +28,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     application_type TEXT,
     verified        INTEGER DEFAULT 0,
     posted_date_raw TEXT,
+    posted_timestamp INTEGER,            -- parsed unix timestamp for chronological sorting
     description_md  TEXT,               -- full job detail page, deep-scraped
     detail_scraped  INTEGER DEFAULT 0,
     first_seen_at   INTEGER,             -- unix timestamp, jab hamne pehli baar dekha
@@ -33,12 +36,14 @@ CREATE TABLE IF NOT EXISTS jobs (
     notified        INTEGER DEFAULT 0,   -- notification bhej di kya
     email           TEXT,                -- extracted contact email
     phone           TEXT,                -- extracted phone / whatsapp number
+    banner_url      TEXT,                -- extracted HD recruitment banner
     source          TEXT DEFAULT 'pharmabharat'  -- which site: pharmabharat / pharmarecruiter
 );
 
 CREATE INDEX IF NOT EXISTS idx_category ON jobs(category);
 CREATE INDEX IF NOT EXISTS idx_fresher ON jobs(is_fresher_friendly);
 CREATE INDEX IF NOT EXISTS idx_notified ON jobs(notified);
+CREATE INDEX IF NOT EXISTS idx_posted_ts ON jobs(posted_timestamp);
 """
 
 
@@ -122,36 +127,114 @@ def backfill_banners():
         pass
 
 
+def parse_posted_timestamp(date_raw: str | None) -> int | None:
+    """Parse raw string like 'July 25, 2026', '2 hours ago', 'July 24, 2026' to epoch timestamp."""
+    if not date_raw:
+        return None
+    s = str(date_raw).strip()
+    now = int(time.time())
+
+    # "2 hours ago", "5 mins ago", "1 day ago"
+    m_ago = re.search(r"(?i)(\d+)\s*(hour|min|minute|day|week|month)s?\s*ago", s)
+    if m_ago:
+        val = int(m_ago.group(1))
+        unit = m_ago.group(2).lower()
+        if "min" in unit:
+            return now - (val * 60)
+        elif "hour" in unit:
+            return now - (val * 3600)
+        elif "day" in unit:
+            return now - (val * 86400)
+        elif "week" in unit:
+            return now - (val * 7 * 86400)
+        elif "month" in unit:
+            return now - (val * 30 * 86400)
+
+    # Clean ordinal suffixes like "25th July 2026" -> "25 July 2026"
+    cleaned_s = re.sub(r"(\d+)(st|nd|rd|th)", r"\1", s)
+    formats = [
+        "%B %d, %Y", "%b %d, %Y", "%d %B %Y", "%d %b %Y",
+        "%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y/%m/%d"
+    ]
+    for fmt in formats:
+        try:
+            dt = datetime.strptime(cleaned_s[:19], fmt)
+            return int(dt.timestamp())
+        except Exception:
+            pass
+
+    return None
+
+
+def backfill_posted_timestamps():
+    """Populate posted_timestamp column for all existing jobs in SQLite DB."""
+    try:
+        with get_conn() as conn:
+            rows = conn.execute(
+                "SELECT slug, posted_date_raw, first_seen_at FROM jobs WHERE posted_timestamp IS NULL"
+            ).fetchall()
+            for r in rows:
+                ts = parse_posted_timestamp(r["posted_date_raw"])
+                if not ts:
+                    ts = r["first_seen_at"] or int(time.time())
+                conn.execute("UPDATE jobs SET posted_timestamp = ? WHERE slug = ?", (ts, r["slug"]))
+    except Exception:
+        pass
+
+
 def init_db():
     with get_conn() as conn:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
-        conn.executescript(SCHEMA)
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS jobs (
+            slug            TEXT PRIMARY KEY,
+            url             TEXT NOT NULL,
+            title           TEXT,
+            company         TEXT,
+            category        TEXT,
+            experience_raw  TEXT,
+            is_fresher      INTEGER DEFAULT 0,
+            is_fresher_friendly INTEGER DEFAULT 0,
+            salary          TEXT,
+            location        TEXT,
+            application_type TEXT,
+            verified        INTEGER DEFAULT 0,
+            posted_date_raw TEXT,
+            description_md  TEXT,
+            detail_scraped  INTEGER DEFAULT 0,
+            first_seen_at   INTEGER,
+            scraped_at      INTEGER,
+            notified        INTEGER DEFAULT 0
+        );
+        """)
         # Migration: add any missing columns to existing DBs
         cols = [r["name"] for r in conn.execute("PRAGMA table_info(jobs)").fetchall()]
         migrations = [
-            ("email",      "ALTER TABLE jobs ADD COLUMN email TEXT"),
-            ("phone",      "ALTER TABLE jobs ADD COLUMN phone TEXT"),
-            ("scraped_at", "ALTER TABLE jobs ADD COLUMN scraped_at INTEGER"),
-            ("is_active",  "ALTER TABLE jobs ADD COLUMN is_active INTEGER DEFAULT 1"),
-            ("banner_url", "ALTER TABLE jobs ADD COLUMN banner_url TEXT"),
-            ("source",     "ALTER TABLE jobs ADD COLUMN source TEXT DEFAULT 'pharmabharat'"),
+            ("email",            "ALTER TABLE jobs ADD COLUMN email TEXT"),
+            ("phone",            "ALTER TABLE jobs ADD COLUMN phone TEXT"),
+            ("scraped_at",       "ALTER TABLE jobs ADD COLUMN scraped_at INTEGER"),
+            ("is_active",        "ALTER TABLE jobs ADD COLUMN is_active INTEGER DEFAULT 1"),
+            ("banner_url",       "ALTER TABLE jobs ADD COLUMN banner_url TEXT"),
+            ("source",           "ALTER TABLE jobs ADD COLUMN source TEXT DEFAULT 'pharmabharat'"),
+            ("posted_timestamp", "ALTER TABLE jobs ADD COLUMN posted_timestamp INTEGER"),
         ]
         for col_name, sql in migrations:
             if col_name not in cols:
                 conn.execute(sql)
         # Set all existing rows to active if is_active is NULL
         conn.execute("UPDATE jobs SET is_active = 1 WHERE is_active IS NULL")
-        # Composite index created AFTER migration so is_active column exists
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_active_cat_fresher ON jobs(is_active, category, is_fresher_friendly)"
-        )
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_source ON jobs(source)"
-        )
-    # Auto-extract email/phone and banner images for existing jobs
+        # Composite indexes created AFTER migration so columns exist
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_category ON jobs(category)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_fresher ON jobs(is_fresher_friendly)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_notified ON jobs(notified)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_active_cat_fresher ON jobs(is_active, category, is_fresher_friendly)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_source ON jobs(source)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_posted_ts ON jobs(posted_timestamp)")
+    # Auto-extract email/phone, banner images & posted timestamps for existing jobs
     backfill_contacts()
     backfill_banners()
+    backfill_posted_timestamps()
 
 
 def _title_exists(conn, title: str) -> bool:
@@ -186,15 +269,16 @@ def upsert_job(job: dict) -> bool:
         if _title_exists(conn, job.get("title")):
             return False
 
+        posted_ts = parse_posted_timestamp(job.get("posted_date_raw")) or int(time.time())
         conn.execute(
             """
             INSERT INTO jobs (
                 slug, url, title, company, category, experience_raw,
                 is_fresher, is_fresher_friendly, salary, location,
-                application_type, verified, posted_date_raw,
+                application_type, verified, posted_date_raw, posted_timestamp,
                 description_md, detail_scraped, first_seen_at, scraped_at,
                 notified, is_active, email, phone, banner_url, source
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 job["slug"],
@@ -210,6 +294,7 @@ def upsert_job(job: dict) -> bool:
                 job.get("application_type"),
                 int(job.get("verified", False)),
                 job.get("posted_date_raw"),
+                posted_ts,
                 job.get("description_md"),
                 int(job.get("detail_scraped", False)),
                 int(time.time()),
@@ -342,13 +427,13 @@ def query_jobs(category=None, fresher_only=False, verified_only=False,
     where_sql = "WHERE " + " AND ".join(where)
     offset = (page - 1) * per_page
 
-    # Proper Sorting Logic with rowid tie-breaker
+    # Chronological Sorting by actual post date & time
     if sort_by == "oldest":
-        order_clause = "ORDER BY first_seen_at ASC, rowid ASC"
+        order_clause = "ORDER BY COALESCE(posted_timestamp, first_seen_at) ASC, rowid ASC"
     elif sort_by == "title":
         order_clause = "ORDER BY title ASC, rowid DESC"
     else:  # newest (default)
-        order_clause = "ORDER BY first_seen_at DESC, rowid DESC"
+        order_clause = "ORDER BY COALESCE(posted_timestamp, first_seen_at) DESC, rowid DESC"
 
     with get_conn() as conn:
         total = conn.execute(
