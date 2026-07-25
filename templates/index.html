@@ -1357,24 +1357,18 @@
     </button>
   </div>
 
-  <!-- Row 1: Quick Filter Chips (Scrollable Segmented Tab Bar) -->
-  <div class="chips-wrapper" style="display:flex; gap:6px; overflow-x:auto; width:100%; padding-bottom:2px; scrollbar-width:none;">
-    <div class="chip active" id="chip-all" style="flex-shrink:0; padding:0 10px;">
+  <!-- Row 1: Quick Filter Chips (No-Swipe 4-Column Segmented Tab Bar) -->
+  <div class="chips-wrapper">
+    <div class="chip active" id="chip-all">
       <i data-lucide="layers"></i> <span class="chip-text">All</span>
     </div>
-    <div class="chip" id="chip-bpharm" style="flex-shrink:0; padding:0 10px;">
-      <i data-lucide="graduation-cap"></i> <span class="chip-text">B.Pharm</span>
-    </div>
-    <div class="chip" id="chip-mpharm" style="flex-shrink:0; padding:0 10px;">
-      <i data-lucide="award"></i> <span class="chip-text">M.Pharm</span>
-    </div>
-    <div class="chip" id="chip-fresher" style="flex-shrink:0; padding:0 10px;">
+    <div class="chip" id="chip-fresher">
       <i data-lucide="sparkles"></i> <span class="chip-text">Fresher</span>
     </div>
-    <div class="chip" id="chip-verified" style="flex-shrink:0; padding:0 10px;">
+    <div class="chip" id="chip-verified">
       <i data-lucide="shield-check"></i> <span class="chip-text">Verified</span>
     </div>
-    <div class="chip" id="chip-saved" style="flex-shrink:0; padding:0 10px;">
+    <div class="chip" id="chip-saved">
       <i data-lucide="bookmark"></i> <span class="chip-text">Saved (<span id="saved-count">0</span>)</span>
     </div>
   </div>
@@ -2411,24 +2405,6 @@ document.getElementById("chip-all").addEventListener("click", () => {
   fetchJobs();
 });
 
-document.getElementById("chip-bpharm").addEventListener("click", () => {
-  state.degree = state.degree === "bpharm" ? "" : "bpharm";
-  state.saved_only = false;
-  state.page = 1;
-  document.getElementById("selected-degree-text").textContent = state.degree === "bpharm" ? "B.Pharm" : "All Degrees";
-  updateChipActiveState();
-  fetchJobs();
-});
-
-document.getElementById("chip-mpharm").addEventListener("click", () => {
-  state.degree = state.degree === "mpharm" ? "" : "mpharm";
-  state.saved_only = false;
-  state.page = 1;
-  document.getElementById("selected-degree-text").textContent = state.degree === "mpharm" ? "M.Pharm" : "All Degrees";
-  updateChipActiveState();
-  fetchJobs();
-});
-
 document.getElementById("chip-fresher").addEventListener("click", () => {
   state.fresher_only = !state.fresher_only;
   state.saved_only = false;
@@ -2456,12 +2432,10 @@ document.getElementById("chip-saved").addEventListener("click", () => {
 
 function updateChipActiveState() {
   const isAll = !state.fresher_only && !state.verified_only && !state.saved_only && !state.degree;
-  document.getElementById("chip-all").classList.toggle("active", isAll);
-  document.getElementById("chip-bpharm").classList.toggle("active-bpharm", state.degree === "bpharm");
-  document.getElementById("chip-mpharm").classList.toggle("active-mpharm", state.degree === "mpharm");
-  document.getElementById("chip-fresher").classList.toggle("active-fresher", state.fresher_only);
-  document.getElementById("chip-verified").classList.toggle("active-verified", state.verified_only);
-  document.getElementById("chip-saved").classList.toggle("active-saved", state.saved_only);
+  document.getElementById("chip-all")?.classList.toggle("active", isAll);
+  document.getElementById("chip-fresher")?.classList.toggle("active-fresher", state.fresher_only);
+  document.getElementById("chip-verified")?.classList.toggle("active-verified", state.verified_only);
+  document.getElementById("chip-saved")?.classList.toggle("active-saved", state.saved_only);
 }
 
 document.getElementById("category-select").addEventListener("change", (e) => {
