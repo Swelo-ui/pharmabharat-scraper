@@ -118,8 +118,37 @@ public class MainActivity extends Activity {
                     }
                 }
                 
-                // Handle native intent links (tel:, mailto:, whatsapp:)
-                if (url.startsWith("tel:") || url.startsWith("mailto:") || url.startsWith("whatsapp:") || url.startsWith("https://wa.me/")) {
+                // Handle mailto links via ACTION_SENDTO so mail app opens directly without password prompts
+                if (url.startsWith("mailto:")) {
+                    try {
+                        Intent intent = new Intent(Intent.ACTION_SENDTO);
+                        intent.setData(Uri.parse(url));
+                        startActivity(intent);
+                        return true;
+                    } catch (Exception e) {
+                        try {
+                            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                            startActivity(intent);
+                            return true;
+                        } catch (Exception ex) {
+                            return false;
+                        }
+                    }
+                }
+
+                // Handle tel links via ACTION_DIAL
+                if (url.startsWith("tel:")) {
+                    try {
+                        Intent intent = new Intent(Intent.ACTION_DIAL, Uri.parse(url));
+                        startActivity(intent);
+                        return true;
+                    } catch (Exception e) {
+                        return false;
+                    }
+                }
+
+                // Handle whatsapp links
+                if (url.startsWith("whatsapp:") || url.startsWith("https://wa.me/")) {
                     try {
                         Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
                         startActivity(intent);
@@ -129,23 +158,8 @@ public class MainActivity extends Activity {
                     }
                 }
                 
-                // Handle Cloudflare Email Protection links
-                if (url.contains("/cdn-cgi/") || url.contains("email-protection")) {
-                    try {
-                        WebView.HitTestResult result = view.getHitTestResult();
-                        String extra = result != null ? result.getExtra() : null;
-                        if (extra != null && extra.contains("@")) {
-                            Intent intent = new Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:" + extra));
-                            startActivity(intent);
-                        }
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                    return true; // Block WebView from loading Cloudflare protection page
-                }
-
                 // Keep internal app navigation within WebView
-                if (url.contains("pharmabharat-scraper.onrender.com") || (url.contains("pharmabharat.com") && !url.contains("/cdn-cgi/"))) {
+                if (url.contains("pharmabharat-scraper.onrender.com") || url.contains("pharmabharat.com")) {
                     return false;
                 }
 
