@@ -41,9 +41,16 @@ public class PharmaJobService extends JobService {
                         if (jobs != null && jobs.length() > 0) {
                             JSONObject latestJob = jobs.getJSONObject(0);
                             String latestSlug = latestJob.optString("slug", "");
-                            String latestTitle = latestJob.optString("title", "New Job Opening");
-                            String latestCompany = latestJob.optString("company", "Pharma Company");
-                            String latestLoc = latestJob.optString("location", "");
+                            String latestTitle = latestJob.optString("title", "New Job Opening").trim();
+                            String latestCompany = latestJob.optString("company", "").trim();
+                            String latestLoc = latestJob.optString("location", "").trim();
+
+                            if (latestCompany.equalsIgnoreCase("null") || latestCompany.equalsIgnoreCase("none")) {
+                                latestCompany = "";
+                            }
+                            if (latestLoc.equalsIgnoreCase("null") || latestLoc.equalsIgnoreCase("none")) {
+                                latestLoc = "";
+                            }
 
                             SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
                             String lastSavedSlug = prefs.getString(KEY_LAST_JOB_ID, "");
@@ -52,7 +59,15 @@ public class PharmaJobService extends JobService {
                                 prefs.edit().putString(KEY_LAST_JOB_ID, latestSlug).apply();
 
                                 String notifTitle = "Pharmly Job Alert";
-                                String notifMsg = latestTitle + " at " + latestCompany + (latestLoc.isEmpty() ? "" : " (" + latestLoc + ")");
+                                StringBuilder sbMsg = new StringBuilder();
+                                sbMsg.append(latestTitle);
+                                if (!latestCompany.isEmpty()) {
+                                    sbMsg.append(" — ").append(latestCompany);
+                                }
+                                if (!latestLoc.isEmpty()) {
+                                    sbMsg.append(" (").append(latestLoc).append(")");
+                                }
+                                String notifMsg = sbMsg.toString();
                                 NotificationHelper.showJobNotification(getApplicationContext(), notifTitle, notifMsg);
                             }
                         }
