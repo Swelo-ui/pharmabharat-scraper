@@ -181,13 +181,31 @@ public class MainActivity extends Activity {
             }
 
             @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                retryCount = 0;
+            }
+
+            @Override
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                 if (request.isForMainFrame()) {
-                    showErrorScreen();
+                    if (isNetworkAvailable() && retryCount < 3) {
+                        retryCount++;
+                        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() {
+                            @Override
+                            public void run() {
+                                webView.loadUrl(TARGET_URL);
+                            }
+                        }, 1500);
+                    } else {
+                        showErrorScreen();
+                    }
                 }
             }
         });
     }
+
+    private int retryCount = 0;
 
     private void loadApp() {
         if (isNetworkAvailable()) {
@@ -195,7 +213,17 @@ public class MainActivity extends Activity {
             webView.setVisibility(View.VISIBLE);
             webView.loadUrl(TARGET_URL);
         } else {
-            showErrorScreen();
+            if (retryCount < 2) {
+                retryCount++;
+                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        loadApp();
+                    }
+                }, 1500);
+            } else {
+                showErrorScreen();
+            }
         }
     }
 
