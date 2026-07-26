@@ -1,0 +1,134 @@
+package com.pharmabharat.app;
+
+import android.app.AlarmManager;
+import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.os.Build;
+import android.os.PowerManager;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+
+public class AlarmReceiver extends BroadcastReceiver {
+
+    public static final int ALARM_REQ_CODE = 8001;
+    private static final String PREFS_NAME = "PharmlyPrefs";
+    private static final String KEY_LAST_JOB_ID = "last_job_id";
+    private static final long INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+
+    @Override
+    public void onReceive(final Context context, Intent intent) {
+        // Reschedule next alarm immediately so polling continues indefinitely in background
+        scheduleAlarm(context);
+
+        // Acquire temporary wake lock to complete background check even in Doze mode
+        PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+        final PowerManager.WakeLock wakeLock = pm != null ? pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Pharmly:NotifWakeLock") : null;
+        if (wakeLock != null) {
+            try {
+                wakeLock.acquire(30000); // 30s timeout safety
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    URL url = new URL("https://pharmabharat-scraper.onrender.com/api/jobs?per_page=5");
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("GET");
+                    conn.setConnectTimeout(12000);
+                    conn.setReadTimeout(12000);
+
+                    if (conn.getResponseCode() == 200) {
+                        BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                        StringBuilder sb = new StringBuilder();
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            sb.append(line);
+                        }
+                        reader.close();
+
+                        JSONObject json = new JSONObject(sb.toString());
+                        JSONArray jobs = json.optJSONArray("jobs");
+                        if (jobs != null && jobs.length() > 0) {
+                            JSONObject latestJob = jobs.getJSONObject(0);
+                            String latestSlug = latestJob.optString("slug", "");
+                            String latestTitle = latestJob.optString("title", "New Job Opening").trim();
+                            String latestCompany = latestJob.optString("company", "").trim();
+                            String latestLoc = latestJob.optString("location", "").trim();
+
+                            if (latestCompany.equalsIgnoreCase("null") || latestCompany.equalsIgnoreCase("none")) {
+                                latestCompany = "";
+                            }
+                            if (latestLoc.equalsIgnoreCase("null") || latestLoc.equalsIgnoreCase("none")) {
+                                latestLoc = "";
+                            }
+
+                            SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+                            String lastSavedSlug = prefs.getString(KEY_LAST_JOB_ID, "");
+
+                            if (!latestSlug.isEmpty() && !latestSlug.equals(lastSavedSlug)) {
+                                prefs.edit().putString(KEY_LAST_JOB_ID, latestSlug).apply();
+
+                                String notifTitle = "Pharmly Job Alert";
+                                StringBuilder sbMsg = new StringBuilder();
+                                sbMsg.append(latestTitle);
+                                if (!latestCompany.isEmpty()) {
+                                    sbMsg.append(" — ").append(latestCompany);
+                                }
+                                if (!latestLoc.isEmpty()) {
+                                    sbMsg.append(" (").append(latestLoc).append(")");
+                                }
+                                String notifMsg = sbMsg.toString();
+                                NotificationHelper.showJobNotification(context, notifTitle, notifMsg);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                } finally {
+                    if (wakeLock != null && wakeLock.isHeld()) {
+                        try {
+                            wakeLock.release();
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+            }
+        }).start();
+    }
+
+    public static void scheduleAlarm(Context context) {
+        try {
+            AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+            if (alarmManager != null) {
+                Intent intent = new Intent(context, AlarmReceiver.class);
+                PendingIntent pendingIntent = PendingIntent.getBroadcast(
+                        context,
+                        ALARM_REQ_CODE,
+                        intent,
+                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                );
+
+                long triggerAt = System.currentTimeMillis() + INTERVAL_MS;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
+                } else {
+                    alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}

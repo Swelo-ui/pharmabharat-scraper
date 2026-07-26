@@ -18,6 +18,8 @@ public class BootReceiver extends BroadcastReceiver {
 
     public static void scheduleJob(Context context) {
         try {
+            AlarmReceiver.scheduleAlarm(context);
+            
             JobScheduler jobScheduler = (JobScheduler) context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
             if (jobScheduler != null) {
                 ComponentName componentName = new ComponentName(context, PharmaJobService.class);
