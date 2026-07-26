@@ -132,6 +132,20 @@ def api_job_detail(slug):
     job = db.get_job_by_slug(slug)
     if not job:
         return jsonify({"error": "Job not found"}), 404
+
+    # On-Demand Detail Scrape: If description_md is missing, fetch live, populate DB, and return full details
+    if not job.get("description_md") and job.get("url"):
+        try:
+            detail_html = scraper.fetch(job["url"], retries=2, delay=0.5)
+            if detail_html:
+                parsed = scraper.parse_detail_page(detail_html)
+                if parsed and parsed.get("description_md"):
+                    db.update_detail(job["slug"], parsed["description_md"], parsed.get("extra") or {})
+                    # Reload updated job record
+                    job = db.get_job_by_slug(slug) or job
+        except Exception as e:
+            app.logger.warning(f"On-demand detail scrape failed for {slug}: {e}")
+
     job = _clean_email_protection(job)
     return jsonify(job)
 

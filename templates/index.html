@@ -2531,8 +2531,23 @@ function openJobModal(slug) {
         });
       } else {
         const siteName = job.source === 'pharmarecruiter' ? 'PharmaRecruiter.in' : 'PharmaBharat';
-        document.getElementById("description-content").innerHTML = bannerHtml +
-          `<p style="color:var(--ink-muted);">Full description not yet scraped. Click <strong>Apply Now</strong> to view on ${siteName}.</p>`;
+        const descEl = document.getElementById("description-content");
+        descEl.innerHTML = bannerHtml +
+          `<div style="color:var(--primary); text-align:center; padding:20px; font-weight:700; font-size:0.9rem;"><span class="spin">⏳</span> Fetching full details live...</div>`;
+
+        // Auto On-Demand Detail Scrape Fallback
+        fetch(`/api/job/${slug}`)
+          .then(r => r.json())
+          .then(updatedJob => {
+            if (updatedJob && updatedJob.description_md) {
+              // Re-render modal seamlessly with newly scraped full details
+              openJobModal(slug);
+            } else {
+              descEl.innerHTML = bannerHtml +
+                `<p style="color:var(--ink-muted);">Full description not yet scraped. Click <strong>Apply Now</strong> to view on ${siteName}.</p>`;
+            }
+          })
+          .catch(() => {});
       }
 
       if (window.lucide) lucide.createIcons();
