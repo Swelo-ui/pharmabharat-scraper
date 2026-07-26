@@ -153,9 +153,11 @@ def api_job_detail(slug):
 @app.route("/api/stats")
 def api_stats():
     stats = dict(_get_cached_stats())
-    # Use real scrape completion time if available (more accurate than max DB timestamp)
+    db_sync = db.get_last_sync_time()
     if last_scrape_status["completed_at"]:
         stats["last_sync_at"] = last_scrape_status["completed_at"]
+    elif db_sync and db_sync > 0:
+        stats["last_sync_at"] = db_sync
     else:
         stats["last_sync_at"] = stats.get("last_updated")
     return jsonify(stats)

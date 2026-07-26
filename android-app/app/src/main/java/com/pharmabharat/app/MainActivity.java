@@ -57,6 +57,13 @@ public class MainActivity extends Activity {
 
         loadApp();
         BootReceiver.scheduleJob(this);
+
+        // Request runtime notification permission for Android 13+ (API 33+)
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            if (checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 101);
+            }
+        }
     }
 
     private void setupWebView() {
