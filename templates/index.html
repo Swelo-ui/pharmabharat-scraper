@@ -2459,129 +2459,127 @@ function setNativeSwipeRefresh(enabled) {
   }
 }
 
-// Open Job Detail Modal with tabbed Overview + Full Description
+// Render Modal Content Helper (Instant 0ms render from memory)
+function renderModalJobData(job) {
+  if (!job) return;
+  currentModalJob = job;
+  document.getElementById("modal-company").textContent = job.company || "PHARMA COMPANY";
+  document.getElementById("modal-title").textContent = job.title || "Job Details";
+  document.getElementById("modal-date").textContent = formatJobDate(job) ? `Posted: ${formatJobDate(job)}` : "";
+  document.getElementById("modal-apply-btn").href = job.url;
+
+  // ── Banner Card & Overview Tab ──
+  const bannerHtml = job.banner_url ? `
+    <div class="job-banner-card">
+      <div class="job-banner-badge">
+        <i data-lucide="image" style="width:12px;height:12px;"></i> Official Recruitment Flyer / Poster
+      </div>
+      <img src="${job.banner_url}" class="job-banner-img" alt="Official Job Banner" onclick="window.open('${job.banner_url}', '_blank')">
+    </div>` : '';
+
+  const degrees = job.degrees || detectDegrees(job.title, job.description_md, job.category);
+  const degreeText = degrees.length > 0 ? degrees.join(", ") : null;
+
+  const fields = [
+    { label: "Company",    icon: "building",       value: job.company },
+    { label: "Experience", icon: "briefcase",      value: job.experience_raw },
+    { label: "Salary",     icon: "coins",          value: sanitizeSalary(job.salary) },
+    { label: "Location",   icon: "map-pin",        value: job.location },
+    { label: "Degree Req", icon: "graduation-cap", value: degreeText },
+    { label: "Category",   icon: "tag",            value: job.category ? job.category.replace(/-/g,' ').replace(/\b\w/g,c=>c.toUpperCase()) : null },
+    { label: "Type",       icon: "user-check",     value: job.application_type },
+  ];
+
+  const fieldsHtml = fields
+    .filter(f => f.value)
+    .map(f => `
+      <div class="overview-item">
+        <div class="ov-label"><i data-lucide="${f.icon}" style="width:11px;height:11px;"></i> ${f.label}</div>
+        <div class="ov-value">${f.value}</div>
+      </div>`).join("");
+
+  document.getElementById("overview-grid").innerHTML = bannerHtml + (fieldsHtml || `<div style="color:var(--ink-muted);font-size:0.85rem;grid-column:1/-1;">Details available in Full Description tab.</div>`);
+
+  // Contacts row
+  document.getElementById("overview-contacts").innerHTML = [
+    job.email ? `<span class="contact-chip" onclick="copyText('${job.email}','Email',event)"><span class="chip-type">EMAIL</span><span class="chip-icon"><i data-lucide="mail" style="width:12px;height:12px;"></i></span>${job.email}</span>` : '',
+    job.phone ? `<span class="contact-chip" onclick="copyText('${job.phone}','Phone',event)"><span class="chip-type">CALL</span><span class="chip-icon"><i data-lucide="phone" style="width:12px;height:12px;"></i></span>${job.phone}</span>` : ''
+  ].join("");
+
+  // ── Description Tab ──
+  const descEl = document.getElementById("description-content");
+  if (job.description_md) {
+    let cleanMd = job.description_md
+      .replace(/(?:\n*#*\s*Contents\s*\n+)(?:\s*[\*\-]\s*\[?\d+\.?\d*.*?\]?\(#.*?\)\s*\n?)+/gi, "\n\n")
+      .replace(/(?:\n*#*\s*Contents\s*\n+)(?:\s*\d+\.\s*\[?.*?\]?\(#.*?\)\s*\n?)+/gi, "\n\n");
+    if (job.email) {
+      cleanMd = cleanMd.replace(/\[email\s*protected\]/gi, job.email);
+    }
+    const html = window.marked ? marked.parse(cleanMd) : cleanMd.replace(/\n/g,'<br>');
+    descEl.innerHTML = bannerHtml + html;
+    descEl.querySelectorAll("#toc_container, .toc_container, [id*='toc'], [class*='ez-toc']").forEach(el => el.remove());
+
+    function decodeCF(hex) {
+      try {
+        let email = '', k = parseInt(hex.substr(0, 2), 16);
+        for (let i = 2; i < hex.length; i += 2) {
+          email += String.fromCharCode(parseInt(hex.substr(i, 2), 16) ^ k);
+        }
+        return email;
+      } catch(e) { return ''; }
+    }
+    descEl.querySelectorAll("[data-cfemail]").forEach(el => {
+      const hex = el.getAttribute("data-cfemail");
+      const dec = decodeCF(hex);
+      if (dec) el.textContent = dec;
+    });
+    descEl.querySelectorAll("a").forEach(a => {
+      if (a.textContent.includes("[email protected]")) {
+        const hex = a.getAttribute("data-cfemail");
+        const dec = hex ? decodeCF(hex) : (job.email || "");
+        if (dec) {
+          a.textContent = dec;
+          a.href = "mailto:" + dec;
+        }
+      }
+    });
+  } else {
+    const siteName = job.source === 'pharmarecruiter' ? 'PharmaRecruiter.in' : 'PharmaBharat';
+    descEl.innerHTML = bannerHtml +
+      `<p style="color:var(--ink-muted);">Full description available on ${siteName}. Click <strong>Apply Now</strong> below to view original post.</p>`;
+  }
+
+  if (window.lucide) lucide.createIcons();
+}
+
+// Open Job Detail Modal with INSTANT (0ms) render from memory
 function openJobModal(slug) {
-  // Guard: if modal already open (e.g. rapid double-tap), don't double-push history
   const alreadyOpen = document.getElementById("job-modal").classList.contains("open");
   if (!alreadyOpen) openModalWithHistory("job-modal");
   else setNativeSwipeRefresh(false);
-  // Reset to overview tab
+  
   switchModalTab('overview');
-  document.getElementById("overview-grid").innerHTML = `<div style="text-align:center;padding:20px;color:var(--ink-muted);grid-column:1/-1;">Loading...</div>`;
-  document.getElementById("overview-contacts").innerHTML = "";
-  document.getElementById("description-content").innerHTML = "Loading full description...";
 
+  // Check if job is already cached in client memory
+  let cachedJob = allLoadedJobs[slug];
+  if (cachedJob) {
+    // INSTANT 0ms Render! No loading spinners ever!
+    renderModalJobData(cachedJob);
+  }
+
+  // Silent background fetch to update or load details if needed
   fetch(`/api/job/${encodeURIComponent(slug)}`)
     .then(r => r.json())
     .then(job => {
-      currentModalJob = job;
-      document.getElementById("modal-company").textContent = job.company || "PHARMA COMPANY";
-      document.getElementById("modal-title").textContent = job.title || "Job Details";
-      document.getElementById("modal-date").textContent = job.posted_date_raw ? `Posted: ${job.posted_date_raw}` : "";
-      document.getElementById("modal-apply-btn").href = job.url;
-
-      // ── Banner Card & Overview Tab ──
-      const bannerHtml = job.banner_url ? `
-        <div class="job-banner-card">
-          <div class="job-banner-badge">
-            <i data-lucide="image" style="width:12px;height:12px;"></i> Official Recruitment Flyer / Poster
-          </div>
-          <img src="${job.banner_url}" class="job-banner-img" alt="Official Job Banner" onclick="window.open('${job.banner_url}', '_blank')">
-        </div>` : '';
-
-      const degrees = job.degrees || detectDegrees(job.title, job.description_md, job.category);
-      const degreeText = degrees.length > 0 ? degrees.join(", ") : null;
-
-      const fields = [
-        { label: "Company",    icon: "building",       value: job.company },
-        { label: "Experience", icon: "briefcase",      value: job.experience_raw },
-        { label: "Salary",     icon: "coins",          value: sanitizeSalary(job.salary) },
-        { label: "Location",   icon: "map-pin",        value: job.location },
-        { label: "Degree Req", icon: "graduation-cap", value: degreeText },
-        { label: "Category",   icon: "tag",            value: job.category ? job.category.replace(/-/g,' ').replace(/\b\w/g,c=>c.toUpperCase()) : null },
-        { label: "Type",       icon: "user-check",     value: job.application_type },
-      ];
-
-      const fieldsHtml = fields
-        .filter(f => f.value)
-        .map(f => `
-          <div class="overview-item">
-            <div class="ov-label"><i data-lucide="${f.icon}" style="width:11px;height:11px;"></i> ${f.label}</div>
-            <div class="ov-value">${f.value}</div>
-          </div>`).join("");
-
-      document.getElementById("overview-grid").innerHTML = bannerHtml + (fieldsHtml || `<div style="color:var(--ink-muted);font-size:0.85rem;grid-column:1/-1;">Details available in Full Description tab.</div>`);
-
-      // Contacts row
-      document.getElementById("overview-contacts").innerHTML = [
-        job.email ? `<span class="contact-chip" onclick="copyText('${job.email}','Email',event)"><span class="chip-type">EMAIL</span><span class="chip-icon"><i data-lucide="mail" style="width:12px;height:12px;"></i></span>${job.email}</span>` : '',
-        job.phone ? `<span class="contact-chip" onclick="copyText('${job.phone}','Phone',event)"><span class="chip-type">CALL</span><span class="chip-icon"><i data-lucide="phone" style="width:12px;height:12px;"></i></span>${job.phone}</span>` : ''
-      ].join("");
-
-      // ── Description Tab ──
-      if (job.description_md) {
-        let cleanMd = job.description_md
-          .replace(/(?:\n*#*\s*Contents\s*\n+)(?:\s*[\*\-]\s*\[?\d+\.?\d*.*?\]?\(#.*?\)\s*\n?)+/gi, "\n\n")
-          .replace(/(?:\n*#*\s*Contents\s*\n+)(?:\s*\d+\.\s*\[?.*?\]?\(#.*?\)\s*\n?)+/gi, "\n\n");
-        if (job.email) {
-          cleanMd = cleanMd.replace(/\[email\s*protected\]/gi, job.email);
+      if (job && job.slug) {
+        allLoadedJobs[job.slug] = job;
+        // Re-render silently with updated data if modal is still open
+        if (document.getElementById("job-modal").classList.contains("open") && currentModalJob && currentModalJob.slug === slug) {
+          renderModalJobData(job);
         }
-        const html = window.marked ? marked.parse(cleanMd) : cleanMd.replace(/\n/g,'<br>');
-        const descEl = document.getElementById("description-content");
-        descEl.innerHTML = bannerHtml + html;
-        descEl.querySelectorAll("#toc_container, .toc_container, [id*='toc'], [class*='ez-toc']").forEach(el => el.remove());
-
-        // Decode any Cloudflare email obfuscation elements in rendered HTML
-        function decodeCF(hex) {
-          try {
-            let email = '', k = parseInt(hex.substr(0, 2), 16);
-            for (let i = 2; i < hex.length; i += 2) {
-              email += String.fromCharCode(parseInt(hex.substr(i, 2), 16) ^ k);
-            }
-            return email;
-          } catch(e) { return ''; }
-        }
-        descEl.querySelectorAll("[data-cfemail]").forEach(el => {
-          const hex = el.getAttribute("data-cfemail");
-          const dec = decodeCF(hex);
-          if (dec) el.textContent = dec;
-        });
-        descEl.querySelectorAll("a").forEach(a => {
-          if (a.textContent.includes("[email protected]")) {
-            const hex = a.getAttribute("data-cfemail");
-            const dec = hex ? decodeCF(hex) : (job.email || "");
-            if (dec) {
-              a.textContent = dec;
-              a.href = "mailto:" + dec;
-            }
-          }
-        });
-      } else {
-        const siteName = job.source === 'pharmarecruiter' ? 'PharmaRecruiter.in' : 'PharmaBharat';
-        const descEl = document.getElementById("description-content");
-        descEl.innerHTML = bannerHtml +
-          `<div style="color:var(--primary); text-align:center; padding:20px; font-weight:700; font-size:0.9rem;"><span class="spin">⏳</span> Fetching full details live...</div>`;
-
-        // Auto On-Demand Detail Scrape Fallback
-        fetch(`/api/job/${slug}`)
-          .then(r => r.json())
-          .then(updatedJob => {
-            if (updatedJob && updatedJob.description_md) {
-              // Re-render modal seamlessly with newly scraped full details
-              openJobModal(slug);
-            } else {
-              descEl.innerHTML = bannerHtml +
-                `<p style="color:var(--ink-muted);">Full description not yet scraped. Click <strong>Apply Now</strong> to view on ${siteName}.</p>`;
-            }
-          })
-          .catch(() => {});
       }
-
-      if (window.lucide) lucide.createIcons();
     })
-    .catch(() => {
-      document.getElementById("overview-grid").innerHTML = `<div style="color:red;grid-column:1/-1;">Failed to load job details.</div>`;
-    });
+    .catch(() => {});
 }
 
 document.getElementById("close-modal-btn").addEventListener("click", () => {
