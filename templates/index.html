@@ -2266,6 +2266,8 @@ function switchModalTab(tab) {
   document.getElementById("tab-" + tab).classList.add("active");
   document.getElementById("pane-" + tab).classList.add("active");
   if (window.lucide) lucide.createIcons();
+}
+
 function formatJobDate(job) {
   if (!job) return "";
   if (job.posted_date_raw && job.posted_date_raw.trim().length > 3) {
