@@ -2266,6 +2266,31 @@ function switchModalTab(tab) {
   document.getElementById("tab-" + tab).classList.add("active");
   document.getElementById("pane-" + tab).classList.add("active");
   if (window.lucide) lucide.createIcons();
+function formatJobDate(job) {
+  if (!job) return "";
+  if (job.posted_date_raw && job.posted_date_raw.trim().length > 3) {
+    return job.posted_date_raw.trim();
+  }
+  if (job.first_seen_at) {
+    try {
+      const d = new Date(job.first_seen_at * 1000);
+      if (!isNaN(d.getTime())) {
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const day = d.getDate();
+        const month = monthNames[d.getMonth()];
+        const year = d.getFullYear();
+        let hours = d.getHours();
+        const minutes = d.getMinutes().toString().padStart(2, '0');
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12;
+        hours = hours ? hours : 12;
+        return `${month} ${day}, ${year} · ${hours}:${minutes} ${ampm}`;
+      }
+    } catch(e) {}
+  }
+  const today = new Date();
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  return `${monthNames[today.getMonth()]} ${today.getDate()}, ${today.getFullYear()}`;
 }
 
 // Render Jobs Feed
@@ -2311,7 +2336,7 @@ function renderJobs(data) {
           <div class="job-header-info">
             <div class="company-sub-line">
               <span class="company-name-text">${job.company || "Pharma Company"}</span>
-              <span class="posted-date">${job.posted_date_raw || 'Recent'}</span>
+              <span class="posted-date">${formatJobDate(job)}</span>
             </div>
             <span class="job-title">${job.title || "Untitled Position"}</span>
             <div class="badge-group">

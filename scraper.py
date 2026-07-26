@@ -264,6 +264,11 @@ def parse_listing_page(html, category=None):
         href = apply_a.get("href")
         if not href or href in seen_hrefs:
             continue
+        
+        clean_href = href.rstrip("/").lower()
+        if clean_href in ["https://pharmabharat.com", "https://pharmarecruiter.in", "http://pharmabharat.com", "http://pharmarecruiter.in"]:
+            continue
+            
         seen_hrefs.add(href)
 
         # parent container dhoondo jisme title + meta dono hon
@@ -283,6 +288,11 @@ def parse_listing_page(html, category=None):
             if t and t != "Apply Now":
                 title = t
                 break
+
+        if title:
+            t_upper = title.upper()
+            if "JOB PORTAL" in t_upper or "PHARMABHARATPHARMACEUTICAL" in t_upper or t_upper in ["PHARMA BHARAT", "PHARMABHARAT"]:
+                continue
 
         lines = _clean_lines(container)
 
