@@ -93,11 +93,46 @@ def api_jobs():
     return jsonify(result)
 
 
+def _decode_cf_hex(hex_str):
+    try:
+        key = int(hex_str[:2], 16)
+        return "".join(chr(int(hex_str[i:i+2], 16) ^ key) for i in range(2, len(hex_str), 2))
+    except Exception:
+        return ""
+
+def _clean_email_protection(job):
+    if not job or not isinstance(job, dict):
+        return job
+    desc = job.get("description_md")
+    if not desc:
+        return job
+
+    import re
+    def cf_replace(m):
+        decoded = _decode_cf_hex(m.group(1))
+        return decoded if decoded else m.group(0)
+
+    desc = re.sub(r'data-cfemail="([a-fA-F0-9]+)"', cf_replace, desc)
+
+    contact_email = job.get("email")
+    if contact_email:
+        desc = re.sub(r'\[email\s*protected\]', f'<a href="mailto:{contact_email}">{contact_email}</a>', desc, flags=re.I)
+    elif "data-cfemail" not in desc:
+        # Fallback regex search for cf email hashes in text
+        def inline_cf_replace(m):
+            dec = _decode_cf_hex(m.group(0))
+            return dec if dec else m.group(0)
+    
+    job["description_md"] = desc
+    return job
+
+
 @app.route("/api/job/<path:slug>")
 def api_job_detail(slug):
     job = db.get_job_by_slug(slug)
     if not job:
         return jsonify({"error": "Job not found"}), 404
+    job = _clean_email_protection(job)
     return jsonify(job)
 
 

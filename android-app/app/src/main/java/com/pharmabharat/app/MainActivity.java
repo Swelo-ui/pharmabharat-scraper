@@ -56,6 +56,7 @@ public class MainActivity extends Activity {
         });
 
         loadApp();
+        BootReceiver.scheduleJob(this);
     }
 
     private void setupWebView() {
@@ -221,40 +222,7 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void showNativeNotification(String title, String message, String url) {
-            try {
-                NotificationManager notificationManager = (NotificationManager) mContext.getSystemService(Context.NOTIFICATION_SERVICE);
-                String channelId = "pharmly_jobs_channel";
-                
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                    NotificationChannel channel = new NotificationChannel(channelId, "Pharmly Job Alerts", NotificationManager.IMPORTANCE_HIGH);
-                    channel.setDescription("Notifications for new pharmacy job openings");
-                    if (notificationManager != null) {
-                        notificationManager.createNotificationChannel(channel);
-                    }
-                }
-
-                Intent intent = new Intent(mContext, MainActivity.class);
-                intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                PendingIntent pendingIntent = PendingIntent.getActivity(mContext, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-
-                Bitmap largeIcon = BitmapFactory.decodeResource(mContext.getResources(), R.drawable.ic_launcher);
-
-                NotificationCompat.Builder builder = new NotificationCompat.Builder(mContext, channelId)
-                        .setSmallIcon(R.drawable.ic_launcher)
-                        .setLargeIcon(largeIcon)
-                        .setContentTitle(title)
-                        .setContentText(message)
-                        .setStyle(new NotificationCompat.BigTextStyle().bigText(message))
-                        .setAutoCancel(true)
-                        .setContentIntent(pendingIntent)
-                        .setPriority(NotificationCompat.PRIORITY_HIGH);
-
-                if (notificationManager != null) {
-                    notificationManager.notify((int) System.currentTimeMillis(), builder.build());
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+            NotificationHelper.showJobNotification(mContext, title, message);
         }
     }
 }

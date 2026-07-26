@@ -2457,10 +2457,39 @@ function openJobModal(slug) {
         let cleanMd = job.description_md
           .replace(/(?:\n*#*\s*Contents\s*\n+)(?:\s*[\*\-]\s*\[?\d+\.?\d*.*?\]?\(#.*?\)\s*\n?)+/gi, "\n\n")
           .replace(/(?:\n*#*\s*Contents\s*\n+)(?:\s*\d+\.\s*\[?.*?\]?\(#.*?\)\s*\n?)+/gi, "\n\n");
+        if (job.email) {
+          cleanMd = cleanMd.replace(/\[email\s*protected\]/gi, job.email);
+        }
         const html = window.marked ? marked.parse(cleanMd) : cleanMd.replace(/\n/g,'<br>');
         const descEl = document.getElementById("description-content");
         descEl.innerHTML = bannerHtml + html;
         descEl.querySelectorAll("#toc_container, .toc_container, [id*='toc'], [class*='ez-toc']").forEach(el => el.remove());
+
+        // Decode any Cloudflare email obfuscation elements in rendered HTML
+        function decodeCF(hex) {
+          try {
+            let email = '', k = parseInt(hex.substr(0, 2), 16);
+            for (let i = 2; i < hex.length; i += 2) {
+              email += String.fromCharCode(parseInt(hex.substr(i, 2), 16) ^ k);
+            }
+            return email;
+          } catch(e) { return ''; }
+        }
+        descEl.querySelectorAll("[data-cfemail]").forEach(el => {
+          const hex = el.getAttribute("data-cfemail");
+          const dec = decodeCF(hex);
+          if (dec) el.textContent = dec;
+        });
+        descEl.querySelectorAll("a").forEach(a => {
+          if (a.textContent.includes("[email protected]")) {
+            const hex = a.getAttribute("data-cfemail");
+            const dec = hex ? decodeCF(hex) : (job.email || "");
+            if (dec) {
+              a.textContent = dec;
+              a.href = "mailto:" + dec;
+            }
+          }
+        });
       } else {
         const siteName = job.source === 'pharmarecruiter' ? 'PharmaRecruiter.in' : 'PharmaBharat';
         document.getElementById("description-content").innerHTML = bannerHtml +
@@ -2777,7 +2806,7 @@ liveScrapeBtn.addEventListener("click", () => {
                 // Trigger Native System Notification on Android Phone!
                 if (window.AndroidNative && window.AndroidNative.showNativeNotification) {
                   window.AndroidNative.showNativeNotification(
-                    "PharmaBharat Alert",
+                    "Pharmly Job Alert",
                     `${st.new_jobs} new fresher & pharma job openings available now!`,
                     "https://pharmabharat-scraper.onrender.com"
                   );

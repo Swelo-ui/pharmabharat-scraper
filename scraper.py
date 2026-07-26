@@ -408,6 +408,24 @@ def parse_detail_page(html):
         for tag in container.select(sel):
             tag.decompose()
 
+    # Decode Cloudflare Obfuscated Email Protection in container
+    def decode_cf_email(hex_str):
+        try:
+            key = int(hex_str[:2], 16)
+            return "".join(chr(int(hex_str[i:i+2], 16) ^ key) for i in range(2, len(hex_str), 2))
+        except Exception:
+            return ""
+
+    if container:
+        for tag in container.find_all(attrs={"data-cfemail": True}):
+            cfemail = tag.get("data-cfemail")
+            if cfemail:
+                decoded = decode_cf_email(cfemail)
+                if decoded:
+                    tag.string = decoded
+                    if tag.name == "a":
+                        tag["href"] = f"mailto:{decoded}"
+
     markdown = md(str(container), heading_style="ATX")
     # Clean TOC table of contents markdown block if present
     markdown = re.sub(r"(?i)\n*#*\s*Contents\s*\n+(\s*[\*\-]\s*\[?\d+\.?\d*.*?\]?\(#.*?\)\s*\n?)+", "\n\n", markdown)
