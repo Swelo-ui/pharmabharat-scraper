@@ -1814,6 +1814,45 @@
   </div>
 </div>
 
+<!-- Admin Export Protection Modal -->
+<div class="bottom-sheet-modal" id="export-auth-modal">
+  <div class="sheet-backdrop" id="close-export-auth-backdrop"></div>
+  <div class="sheet-content" style="max-width:440px; margin:0 auto;">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div style="width:36px; height:36px; border-radius:50%; background:var(--primary-light); color:var(--primary); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+          <i data-lucide="shield-alert" style="width:20px;height:20px;"></i>
+        </div>
+        <div>
+          <h3 style="margin:0; font-size:1.05rem; font-weight:800; color:var(--ink);">Admin Security Access</h3>
+          <span style="font-size:0.75rem; color:var(--ink-muted);">Enter password to export data sheet</span>
+        </div>
+      </div>
+      <button class="sheet-close" id="close-export-auth-btn" aria-label="Close">
+        <i data-lucide="x"></i>
+      </button>
+    </div>
+    <div class="sheet-body" style="padding-top:16px;">
+      <p style="font-size:0.85rem; color:var(--ink-soft); margin:0 0 14px 0; line-height:1.4;">
+        Data Export is restricted to authorized maintainers to prevent data scraping theft. Please enter the Admin Password to download.
+      </p>
+      <form id="export-auth-form" onsubmit="event.preventDefault(); submitExportAuth();">
+        <div style="margin-bottom:14px;">
+          <label style="display:block; font-size:0.78rem; font-weight:700; color:var(--ink-muted); margin-bottom:6px;">ADMIN PASSWORD</label>
+          <input type="password" id="export-password-input" placeholder="Enter password..." style="width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--border); background:var(--bg); color:var(--ink); font-size:0.95rem; font-weight:600; box-sizing:border-box; outline:none;" autocomplete="current-password">
+          <div id="export-auth-error" style="color:#E53E3E; font-size:0.78rem; font-weight:700; margin-top:6px; display:none;">
+            Incorrect Admin Password! Access Denied.
+          </div>
+        </div>
+        <button type="submit" class="btn-action" style="width:100%; padding:13px; border-radius:12px; background:var(--primary); color:#FFF; border:none; font-weight:800; font-size:0.92rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; box-shadow:0 4px 12px var(--primary-glow);">
+          <i data-lucide="download" style="width:18px;height:18px;"></i> Verify & Export Excel
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
 <!-- Toast Notification Element -->
 <div class="toast" id="toast" style="display:none;"></div>
 
@@ -2738,19 +2777,45 @@ document.getElementById("next-btn").addEventListener("click", () => {
   state.page++; fetchJobs(); window.scrollTo({ top: 0, behavior: 'smooth' });
 });
 
-// Export CSV / Excel Action
+// Export CSV / Excel Action (Protected by Admin Password)
 document.getElementById("export-csv-btn").addEventListener("click", () => {
-  const params = new URLSearchParams({
-    format: "csv",
-    category: state.category,
-    fresher_only: state.fresher_only,
-    verified_only: state.verified_only,
-    q: state.q
-  });
-  const exportUrl = `/api/export?${params.toString()}`;
-  showToast("Downloading Excel data file...");
-  window.open(exportUrl, "_blank");
+  const passInput = document.getElementById("export-password-input");
+  if (passInput) passInput.value = "";
+  const errEl = document.getElementById("export-auth-error");
+  if (errEl) errEl.style.display = "none";
+  openModalWithHistory("export-auth-modal");
+  setTimeout(() => {
+    if (passInput) passInput.focus();
+  }, 250);
 });
+
+function submitExportAuth() {
+  const passInput = document.getElementById("export-password-input");
+  const password = passInput ? passInput.value.trim().toLowerCase() : "";
+  const errEl = document.getElementById("export-auth-error");
+
+  if (password === "swelo") {
+    closeAllModals();
+    showToast("Password verified! Downloading Excel data file...");
+    const params = new URLSearchParams({
+      format: "csv",
+      category: state.category,
+      fresher_only: state.fresher_only,
+      verified_only: state.verified_only,
+      q: state.q,
+      key: "swelo"
+    });
+    const exportUrl = `/api/export?${params.toString()}`;
+    window.open(exportUrl, "_blank");
+  } else {
+    if (errEl) errEl.style.display = "block";
+    showToast("Access Denied: Incorrect Admin Password!");
+    if (passInput) {
+      passInput.focus();
+      passInput.select();
+    }
+  }
+}
 
 // Trigger Live Scrape Sync Action
 const liveScrapeBtn = document.getElementById("trigger-scrape-btn");
@@ -2829,7 +2894,7 @@ liveScrapeBtn.addEventListener("click", () => {
 setInterval(fetchStats, 60000);
 
 // Close modals on overlay click
-["job-modal", "category-modal", "degree-modal", "location-modal", "sort-modal", "about-modal", "legal-modal"].forEach(id => {
+["job-modal", "category-modal", "degree-modal", "location-modal", "sort-modal", "about-modal", "legal-modal", "export-auth-modal"].forEach(id => {
   const el = document.getElementById(id);
   if (el) {
     el.addEventListener("click", (e) => {
@@ -2838,7 +2903,7 @@ setInterval(fetchStats, 60000);
   }
 });
 
-// About & Legal Modal Listeners
+// About, Legal & Export Auth Modal Listeners
 ["open-about-modal", "footer-about-link"].forEach(id => {
   const btn = document.getElementById(id);
   if (btn) btn.addEventListener("click", () => openModalWithHistory("about-modal"));
@@ -2855,6 +2920,11 @@ setInterval(fetchStats, 60000);
 });
 
 ["close-legal-btn", "close-legal-backdrop"].forEach(id => {
+  const btn = document.getElementById(id);
+  if (btn) btn.addEventListener("click", closeAllModals);
+});
+
+["close-export-auth-btn", "close-export-auth-backdrop"].forEach(id => {
   const btn = document.getElementById(id);
   if (btn) btn.addEventListener("click", closeAllModals);
 });

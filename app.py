@@ -170,6 +170,10 @@ def api_sources():
 
 @app.route("/api/export")
 def api_export():
+    key = request.args.get("key") or request.args.get("password") or ""
+    if key.strip().lower() != "swelo":
+        return jsonify({"error": "Unauthorized. Admin password 'swelo' is required to export data."}), 403
+
     fmt = request.args.get("format", "csv").lower()
     category = request.args.get("category") or None
     degree = request.args.get("degree") or None
