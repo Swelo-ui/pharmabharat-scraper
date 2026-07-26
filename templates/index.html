@@ -2259,12 +2259,23 @@ function showSkeleton() {
     </div>`).join("");
 }
 
+function resetModalScroll() {
+  const modal = document.getElementById("job-modal");
+  if (modal) {
+    modal.scrollTop = 0;
+    const elements = modal.querySelectorAll(".modal-card, .modal-body, .modal-content, .tab-pane, .modal-content-area, #overview-grid, #description-content");
+    elements.forEach(el => { el.scrollTop = 0; });
+  }
+}
+
 // Modal tab switching
 function switchModalTab(tab) {
   document.querySelectorAll(".modal-tab").forEach(t => t.classList.remove("active"));
   document.querySelectorAll(".tab-pane").forEach(p => p.classList.remove("active"));
   document.getElementById("tab-" + tab).classList.add("active");
   document.getElementById("pane-" + tab).classList.add("active");
+  
+  resetModalScroll();
   if (window.lucide) lucide.createIcons();
 }
 
@@ -2550,6 +2561,7 @@ function renderModalJobData(job) {
   }
 
   if (window.lucide) lucide.createIcons();
+  resetModalScroll();
 }
 
 // Open Job Detail Modal with INSTANT (0ms) render from memory
@@ -2559,6 +2571,7 @@ function openJobModal(slug) {
   else setNativeSwipeRefresh(false);
   
   switchModalTab('overview');
+  resetModalScroll();
 
   // Check if job is already cached in client memory
   let cachedJob = allLoadedJobs[slug];
