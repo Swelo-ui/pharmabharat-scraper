@@ -232,14 +232,25 @@ def parse_listing_page(html, category=None):
     jobs = []
     seen_hrefs = set()
 
-    apply_links = [a for a in soup.find_all("a") if a.get_text(strip=True) == "Apply Now"]
+    EXCLUDE_PATTERNS = [
+        "/category/", "/tag/", "/page/", "/about", "/contact", "/privacy", "/terms",
+        "/disclaimer", "/sitemap", "/author/", "/wp-content/", "/wp-includes/",
+        "/?s=", "/feed/", "#", ".png", ".jpg", ".jpeg", ".svg"
+    ]
 
-    for apply_a in apply_links:
-        href = apply_a.get("href")
+    target_links = []
+    for a in soup.find_all("a", href=True):
+        href = a["href"].strip()
         if not href or href in seen_hrefs:
             continue
-        seen_hrefs.add(href)
+        if ("pharmabharat.com/" in href or "pharmarecruiter.in/" in href) and not any(x in href.lower() for x in EXCLUDE_PATTERNS):
+            clean_url = href.split("?")[0].split("#")[0].rstrip("/") + "/"
+            if clean_url.count("/") >= 3 and len(clean_url.split("/")[-2]) > 3:
+                seen_hrefs.add(href)
+                seen_hrefs.add(clean_url)
+                target_links.append((a, href))
 
+    for apply_a, href in target_links:
         # parent container dhoondo jisme title + meta dono hon
         container = apply_a
         for _ in range(6):
@@ -250,13 +261,19 @@ def parse_listing_page(html, category=None):
             if 40 <= text_len <= 700:
                 break
 
-        # title: same href wala doosra <a> jiska text "Apply Now" nahi hai
-        title = None
-        for a in container.find_all("a", href=href):
-            t = a.get_text(strip=True)
-            if t and t != "Apply Now":
-                title = t
-                break
+        # title: check link text or container title
+        title = apply_a.get_text(strip=True)
+        if not title or title.lower() in ["apply now", "read more", "view job", "apply online", ""]:
+            title = None
+            for a in container.find_all("a", href=href):
+                t = a.get_text(strip=True)
+                if t and t.lower() not in ["apply now", "read more", "view job", "apply online"]:
+                    title = t
+                    break
+
+        slug = _slug_from_url(href)
+        if not title:
+            title = slug.replace("-", " ").title()
 
         lines = _clean_lines(container)
 
@@ -324,7 +341,6 @@ def parse_listing_page(html, category=None):
         is_fresher = bool(re.search(r"(?i)\bfreshers?\b", experience or ""))
         is_fresher_friendly = is_fresher or bool(re.match(r"^\s*0\s*[-–—]", experience or ""))
 
-        slug = _slug_from_url(href)
         jobs.append({
             "slug": slug,
             "url": href if href.startswith("http") else BASE_URL + href,

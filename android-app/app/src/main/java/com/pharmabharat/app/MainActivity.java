@@ -129,8 +129,23 @@ public class MainActivity extends Activity {
                     }
                 }
                 
+                // Handle Cloudflare Email Protection links
+                if (url.contains("/cdn-cgi/") || url.contains("email-protection")) {
+                    try {
+                        WebView.HitTestResult result = view.getHitTestResult();
+                        String extra = result != null ? result.getExtra() : null;
+                        if (extra != null && extra.contains("@")) {
+                            Intent intent = new Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:" + extra));
+                            startActivity(intent);
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                    return true; // Block WebView from loading Cloudflare protection page
+                }
+
                 // Keep internal app navigation within WebView
-                if (url.contains("pharmabharat-scraper.onrender.com") || url.contains("pharmabharat.com")) {
+                if (url.contains("pharmabharat-scraper.onrender.com") || (url.contains("pharmabharat.com") && !url.contains("/cdn-cgi/"))) {
                     return false;
                 }
 
