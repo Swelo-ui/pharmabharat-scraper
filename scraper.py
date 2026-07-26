@@ -353,9 +353,21 @@ def parse_listing_page(html, category=None):
                 company = r
                 break
 
-        # Location: try to find from remaining lines
-        if not location_found:
-            location_found = _extract_location(remaining)
+        # Sanitize text fields (remove &amp;, &#8211;, \ufffd replacement chars)
+        def _sanitize(txt):
+            if not txt:
+                return txt
+            import html
+            txt = html.unescape(txt)
+            txt = txt.replace('\ufffd', ' - ').replace('–', ' - ').replace('—', ' - ')
+            txt = re.sub(r'\s*\-\s*', ' - ', txt)
+            txt = re.sub(r'\s+', ' ', txt).strip()
+            return txt
+
+        title = _sanitize(title)
+        company = _sanitize(company)
+        location_found = _sanitize(location_found)
+        experience = _sanitize(experience)
 
         is_fresher = bool(re.search(r"(?i)\bfreshers?\b", experience or ""))
         is_fresher_friendly = is_fresher or bool(re.match(r"^\s*0\s*[-–—]", experience or ""))
