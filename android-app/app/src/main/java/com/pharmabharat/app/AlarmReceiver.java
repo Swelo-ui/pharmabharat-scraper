@@ -20,7 +20,7 @@ public class AlarmReceiver extends BroadcastReceiver {
     public static final int ALARM_REQ_CODE = 8001;
     private static final String PREFS_NAME = "PharmlyPrefs";
     private static final String KEY_LAST_JOB_ID = "last_job_id";
-    private static final long INTERVAL_MS = 5 * 60 * 1000; // 5 minutes fast background check
+    private static final long INTERVAL_MS = 2 * 60 * 1000; // 2 minutes ultra-fast Doze-bypass background check
 
     @Override
     public void onReceive(final Context context, Intent intent) {

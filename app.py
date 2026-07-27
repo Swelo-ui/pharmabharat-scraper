@@ -49,9 +49,9 @@ def _invalidate_stats_cache():
 
 
 BROADCAST_NOTIFICATION = {
-    "id": f"notif_himanshu_instant_{int(time.time())}",
-    "title": "Pharmly Alert",
-    "message": "Hi Freshers, it's Himanshu! Check out the latest fresher job openings on Pharmly now!",
+    "id": f"notif_doze_bypass_{int(time.time())}",
+    "title": "Pharmly Instant Alert",
+    "message": "Hi Freshers, it's Himanshu! Testing 2-min Doze-Bypass Closed App Notification 🚀",
     "url": "/?fresher_only=true",
     "timestamp": int(time.time())
 }
@@ -75,14 +75,14 @@ def api_push_broadcast():
 @app.route("/api/app-version")
 def api_app_version():
     return jsonify({
-        "version_code": 9,
-        "version_name": "3.5.0",
+        "version_code": 10,
+        "version_name": "3.6.0",
         "download_url": "https://github.com/Swelo-ui/pharmabharat-scraper/raw/main/Pharmly.apk",
         "changelog": [
-            "⚡ Official Version 3.5.0 Update!",
-            "Instant Notification Trigger — Zero-Delay On App Launch & Background",
-            "High-Precision 4-Field Verified Deduplication (Brand, Role, Location & Exp)",
-            "Single-Line Material You Banner & Real-Time Downloader"
+            "⚡ Official Version 3.6.0 Update!",
+            "Native Doze-Bypass Engine — 2-Min Background Closed App Notification",
+            "Instant Startup & Resume Push Check in MainActivity",
+            "4-Field Verified Smart Deduplication (Brand, Role, Loc, Exp)"
         ]
     })
 
