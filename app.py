@@ -49,11 +49,11 @@ def _invalidate_stats_cache():
 
 
 BROADCAST_NOTIFICATION = {
-    "id": "notif_freshers_101",
+    "id": f"notif_freshers_instant_now_{int(time.time())}",
     "title": "Pharmly Fresher Alert",
     "message": "Fresher are still waiting? Check latest fresher job vacancies now!",
     "url": "/?fresher_only=true",
-    "timestamp": 1785133100
+    "timestamp": int(time.time())
 }
 
 @app.route("/api/push-broadcast", methods=["GET", "POST"])
