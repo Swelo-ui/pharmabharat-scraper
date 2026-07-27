@@ -1887,6 +1887,16 @@
         </ul>
       </div>
 
+      <div id="update-progress-box" style="display:none; margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; font-size:0.8rem; font-weight:700; color:var(--ink-muted); margin-bottom:6px;">
+          <span id="update-status-text">Downloading Pharmly APK...</span>
+          <span id="update-percent-text" style="color:var(--primary);">0%</span>
+        </div>
+        <div style="width:100%; height:10px; background:var(--surface-hover); border-radius:6px; overflow:hidden; border:1px solid var(--border);">
+          <div id="update-progress-fill" style="width:0%; height:100%; background:linear-gradient(90deg, #2DD4BF, #0F766E); transition:width 0.2s ease;"></div>
+        </div>
+      </div>
+
       <button id="btn-start-app-update" onclick="triggerInAppUpdate()" style="width:100%; padding:14px; border-radius:14px; background:linear-gradient(135deg, var(--primary), #0D9488); color:#FFF; border:none; font-weight:800; font-size:0.95rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; box-shadow:0 6px 20px var(--primary-glow);">
         <i data-lucide="download-cloud" style="width:20px;height:20px;"></i> Update Now (1-Tap Download)
       </button>
@@ -2826,22 +2836,66 @@ function checkAppUpdate() {
     .catch(() => {});
 }
 
+let isApkDownloadFinished = false;
+
 function triggerInAppUpdate() {
   const btn = document.getElementById("btn-start-app-update");
+  const pBox = document.getElementById("update-progress-box");
+  
+  if (isApkDownloadFinished) {
+    if (window.AndroidNative && window.AndroidNative.promptInstallApk) {
+      window.AndroidNative.promptInstallApk();
+    }
+    return;
+  }
+
+  if (pBox) pBox.style.display = "block";
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = `<i data-lucide="loader-2" class="spin" style="width:20px;height:20px;"></i> Starting Download...`;
+    btn.innerHTML = `<i data-lucide="loader-2" class="spin" style="width:20px;height:20px;"></i> Downloading Update...`;
     if (window.lucide) lucide.createIcons();
   }
 
   if (window.AndroidNative && window.AndroidNative.downloadAndInstallApk) {
     window.AndroidNative.downloadAndInstallApk(appUpdateDownloadUrl);
-    showToast("Downloading update... Check notification bar to install!");
   } else {
     window.open(appUpdateDownloadUrl, "_blank");
     showToast("Downloading Pharmly APK update...");
   }
 }
+
+// Global Callback from Native Android Java when APK download progress updates
+window.onApkDownloadProgress = function(percent) {
+  const pBox = document.getElementById("update-progress-box");
+  const fill = document.getElementById("update-progress-fill");
+  const txt = document.getElementById("update-percent-text");
+  
+  if (pBox) pBox.style.display = "block";
+  if (fill) fill.style.width = percent + "%";
+  if (txt) txt.textContent = percent + "%";
+};
+
+// Global Callback from Native Android Java when APK download is 100% complete
+window.onApkDownloadComplete = function() {
+  isApkDownloadFinished = true;
+  const fill = document.getElementById("update-progress-fill");
+  const txt = document.getElementById("update-percent-text");
+  const statusTxt = document.getElementById("update-status-text");
+  const btn = document.getElementById("btn-start-app-update");
+
+  if (fill) fill.style.width = "100%";
+  if (txt) txt.textContent = "100%";
+  if (statusTxt) statusTxt.textContent = "Download Complete! Ready to Install.";
+  
+  if (btn) {
+    btn.disabled = false;
+    btn.style.background = "linear-gradient(135deg, #10B981, #059669)";
+    btn.innerHTML = `<i data-lucide="check-circle" style="width:20px;height:20px;"></i> Install Now 🚀`;
+    if (window.lucide) lucide.createIcons();
+  }
+
+  showToast("Download Complete! Tap Install Now to update.");
+};
 
 function closeAppUpdateModal() {
   closeAllModals();
