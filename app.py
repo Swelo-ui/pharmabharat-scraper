@@ -48,6 +48,30 @@ def _invalidate_stats_cache():
     _stats_cache["expires_at"] = 0
 
 
+BROADCAST_NOTIFICATION = {
+    "id": "notif_freshers_101",
+    "title": "Pharmly Fresher Alert",
+    "message": "Fresher are still waiting? Check latest fresher job vacancies now!",
+    "url": "/?fresher_only=true",
+    "timestamp": 1785133100
+}
+
+@app.route("/api/push-broadcast", methods=["GET", "POST"])
+def api_push_broadcast():
+    global BROADCAST_NOTIFICATION
+    if request.method == "POST":
+        data = request.get_json() or {}
+        BROADCAST_NOTIFICATION = {
+            "id": f"notif_{int(time.time())}",
+            "title": data.get("title", "Pharmly Notification"),
+            "message": data.get("message", ""),
+            "url": data.get("url", "/"),
+            "timestamp": int(time.time())
+        }
+        return jsonify({"status": "success", "notification": BROADCAST_NOTIFICATION})
+    return jsonify(BROADCAST_NOTIFICATION)
+
+
 @app.route("/api/app-version")
 def api_app_version():
     return jsonify({

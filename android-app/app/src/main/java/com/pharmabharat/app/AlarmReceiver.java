@@ -121,9 +121,38 @@ public class AlarmReceiver extends BroadcastReceiver {
 
                             if (serverCode > currentCode && serverCode > lastNotifiedCode) {
                                 prefs.edit().putInt("last_notified_ver_code", serverCode).apply();
-                                String notifTitle = "🚀 Pharmly Update Available (v" + verName + ")";
+                                String notifTitle = "Pharmly Update Available (v" + verName + ")";
                                 String notifMsg = "A new version of Pharmly is ready. Tap to install now!";
                                 NotificationHelper.showJobNotification(context, notifTitle, notifMsg);
+                            }
+                        }
+                    } catch (Exception ignored) {}
+
+                    // ─── Broadcast Custom Push Notification Check ───
+                    try {
+                        URL bcUrl = new URL("https://pharmabharat-scraper.onrender.com/api/push-broadcast");
+                        HttpURLConnection bcConn = (HttpURLConnection) bcUrl.openConnection();
+                        bcConn.setRequestMethod("GET");
+                        bcConn.setConnectTimeout(8000);
+                        bcConn.setReadTimeout(8000);
+                        if (bcConn.getResponseCode() == 200) {
+                            BufferedReader r = new BufferedReader(new InputStreamReader(bcConn.getInputStream()));
+                            StringBuilder sbBc = new StringBuilder();
+                            String l;
+                            while ((l = r.readLine()) != null) sbBc.append(l);
+                            r.close();
+
+                            JSONObject bcJson = new JSONObject(sbBc.toString());
+                            String bcId = bcJson.optString("id", "");
+                            String bcTitle = bcJson.optString("title", "Pharmly Notification");
+                            String bcMsg = bcJson.optString("message", "");
+
+                            SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+                            String lastSavedBcId = prefs.getString("last_broadcast_notif_id", "");
+
+                            if (!bcId.isEmpty() && !bcId.equals(lastSavedBcId) && !bcMsg.isEmpty()) {
+                                prefs.edit().putString("last_broadcast_notif_id", bcId).apply();
+                                NotificationHelper.showJobNotification(context, bcTitle, bcMsg);
                             }
                         }
                     } catch (Exception ignored) {}
