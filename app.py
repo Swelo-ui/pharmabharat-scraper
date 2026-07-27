@@ -49,9 +49,9 @@ def _invalidate_stats_cache():
 
 
 BROADCAST_NOTIFICATION = {
-    "id": f"notif_freshers_instant_now_{int(time.time())}",
+    "id": f"notif_instant_himanshu_{int(time.time())}",
     "title": "Pharmly Fresher Alert",
-    "message": "Fresher are still waiting? Check latest fresher job vacancies now!",
+    "message": "Hi Freshers, it's Himanshu! Check out the latest fresher job openings on Pharmly now!",
     "url": "/?fresher_only=true",
     "timestamp": int(time.time())
 }
