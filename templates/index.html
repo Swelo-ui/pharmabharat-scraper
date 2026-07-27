@@ -1853,6 +1853,47 @@
   </div>
 </div>
 
+<!-- ─── In-App Auto Update Modal ─── -->
+<div class="bottom-sheet-modal" id="app-update-modal">
+  <div class="sheet-backdrop" onclick="closeAppUpdateModal()"></div>
+  <div class="sheet-content" style="max-width:440px; margin:0 auto; border-radius:24px 24px 0 0;">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header" style="align-items:flex-start;">
+      <div style="display:flex; align-items:center; gap:12px; min-width:0; flex:1;">
+        <div style="width:44px; height:44px; border-radius:14px; background:linear-gradient(135deg, #2DD4BF, #0F766E); color:#FFF; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 4px 14px rgba(45,212,191,0.35);">
+          <i data-lucide="sparkles" style="width:24px;height:24px;"></i>
+        </div>
+        <div style="min-width:0; flex:1;">
+          <h3 style="margin:0; font-size:1.1rem; font-weight:800; color:var(--ink);">Pharmly Update Available! 🎉</h3>
+          <span id="update-version-tag" style="font-size:0.78rem; color:var(--primary); font-weight:700;">New Version Ready</span>
+        </div>
+      </div>
+      <button class="sheet-close" onclick="closeAppUpdateModal()" aria-label="Close">
+        <i data-lucide="x"></i>
+      </button>
+    </div>
+    <div class="sheet-body" style="padding-top:12px;">
+      <p style="font-size:0.86rem; color:var(--ink-muted); margin:0 0 12px 0;">A new version of Pharmly is available with new features & improvements:</p>
+      
+      <div style="background:var(--surface-hover); padding:14px; border-radius:14px; border:1px solid var(--border); margin-bottom:18px;">
+        <div style="font-weight:700; font-size:0.82rem; color:var(--ink); margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+          <i data-lucide="check-circle-2" style="width:15px;height:15px;color:var(--primary);"></i> What's New in this Update:
+        </div>
+        <ul id="update-changelog-list" style="margin:0; padding-left:20px; font-size:0.8rem; color:var(--ink-muted); line-height:1.6;">
+          <li>Seamless In-App 1-Tap Auto Update System</li>
+          <li>Guaranteed 5-Minute Background Job Notifications</li>
+          <li>In-App Fullscreen HD Image Lightbox Viewer with Pinch-Zoom</li>
+          <li>Top-scroll auto-reset for all modals</li>
+        </ul>
+      </div>
+
+      <button id="btn-start-app-update" onclick="triggerInAppUpdate()" style="width:100%; padding:14px; border-radius:14px; background:linear-gradient(135deg, var(--primary), #0D9488); color:#FFF; border:none; font-weight:800; font-size:0.95rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; box-shadow:0 6px 20px var(--primary-glow);">
+        <i data-lucide="download-cloud" style="width:20px;height:20px;"></i> Update Now (1-Tap Download)
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- Fullscreen HD Image Lightbox Modal -->
 <div id="image-lightbox-modal" style="position:fixed; top:0; left:0; right:0; bottom:0; z-index:11000; background:rgba(0,0,0,0.95); display:none; flex-direction:column; opacity:0; transition:opacity 0.2s ease;">
   <div style="height:56px; display:flex; align-items:center; justify-content:space-between; padding:0 16px; background:rgba(15,23,42,0.9); backdrop-filter:blur(10px); color:#fff; z-index:11010; border-bottom:1px solid rgba(255,255,255,0.1);">
@@ -2751,6 +2792,63 @@ document.addEventListener("DOMContentLoaded", () => {
     isPanning = false;
   });
 });
+
+// ── In-App One-Tap Auto Update System ──
+let appUpdateDownloadUrl = "https://github.com/Swelo-ui/pharmabharat-scraper/raw/main/Pharmly.apk";
+
+function checkAppUpdate() {
+  fetch('/api/app-version')
+    .then(r => r.json())
+    .then(data => {
+      if (!data || !data.version_code) return;
+      appUpdateDownloadUrl = data.download_url || appUpdateDownloadUrl;
+      
+      let localVersionCode = 1;
+      if (window.AndroidNative && window.AndroidNative.getAppVersionCode) {
+        try {
+          localVersionCode = window.AndroidNative.getAppVersionCode();
+        } catch(e) {}
+      }
+
+      if (data.version_code > localVersionCode) {
+        const verTag = document.getElementById("update-version-tag");
+        if (verTag) verTag.textContent = `New Version ${data.version_name || ''} Ready`;
+        
+        const listEl = document.getElementById("update-changelog-list");
+        if (listEl && data.changelog && Array.isArray(data.changelog)) {
+          listEl.innerHTML = data.changelog.map(c => `<li>${c}</li>`).join("");
+        }
+        
+        openModalWithHistory("app-update-modal");
+        if (window.lucide) lucide.createIcons();
+      }
+    })
+    .catch(() => {});
+}
+
+function triggerInAppUpdate() {
+  const btn = document.getElementById("btn-start-app-update");
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<i data-lucide="loader-2" class="spin" style="width:20px;height:20px;"></i> Starting Download...`;
+    if (window.lucide) lucide.createIcons();
+  }
+
+  if (window.AndroidNative && window.AndroidNative.downloadAndInstallApk) {
+    window.AndroidNative.downloadAndInstallApk(appUpdateDownloadUrl);
+    showToast("Downloading update... Check notification bar to install!");
+  } else {
+    window.open(appUpdateDownloadUrl, "_blank");
+    showToast("Downloading Pharmly APK update...");
+  }
+}
+
+function closeAppUpdateModal() {
+  closeAllModals();
+}
+
+// Auto-check for new app updates 2.5s after launch
+setTimeout(checkAppUpdate, 2500);
 
 function openModalWithHistory(modalId) {
   setNativeSwipeRefresh(false);

@@ -48,6 +48,21 @@ def _invalidate_stats_cache():
     _stats_cache["expires_at"] = 0
 
 
+@app.route("/api/app-version")
+def api_app_version():
+    return jsonify({
+        "version_code": 3,
+        "version_name": "3.0.0",
+        "download_url": "https://github.com/Swelo-ui/pharmabharat-scraper/raw/main/Pharmly.apk",
+        "changelog": [
+            "Seamless In-App One-Tap Auto Update System",
+            "Guaranteed 5-Minute Background Job Notifications",
+            "In-App Fullscreen HD Image Lightbox Viewer with Pinch-Zoom",
+            "Top-scroll auto-reset for all modals"
+        ]
+    })
+
+
 # ─── Routes ───────────────────────────────────────────────────────────────────
 
 @app.route("/")
