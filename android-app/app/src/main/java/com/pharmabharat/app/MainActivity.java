@@ -25,6 +25,7 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import java.io.File;
 import androidx.core.app.NotificationCompat;
 
 public class MainActivity extends Activity {
@@ -63,6 +64,31 @@ public class MainActivity extends Activity {
             if (checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 101);
             }
+        }
+    }
+
+    private File downloadedApkFile = null;
+
+    private void installApkFileDirect(Context context, File apkFile) {
+        if (apkFile == null || !apkFile.exists()) return;
+        try {
+            Uri apkUri;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                apkUri = androidx.core.content.FileProvider.getUriForFile(
+                    context,
+                    context.getPackageName() + ".fileprovider",
+                    apkFile
+                );
+            } else {
+                apkUri = Uri.fromFile(apkFile);
+            }
+
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            context.startActivity(intent);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -181,31 +207,13 @@ public class MainActivity extends Activity {
             }
 
             @Override
-            public void onPageFinished(WebView view, String url) {
-                super.onPageFinished(view, url);
-                retryCount = 0;
-            }
-
-            @Override
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                 if (request.isForMainFrame()) {
-                    if (isNetworkAvailable() && retryCount < 3) {
-                        retryCount++;
-                        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() {
-                            @Override
-                            public void run() {
-                                webView.loadUrl(TARGET_URL);
-                            }
-                        }, 1500);
-                    } else {
-                        showErrorScreen();
-                    }
+                    showErrorScreen();
                 }
             }
         });
     }
-
-    private int retryCount = 0;
 
     private void loadApp() {
         if (isNetworkAvailable()) {
@@ -213,17 +221,7 @@ public class MainActivity extends Activity {
             webView.setVisibility(View.VISIBLE);
             webView.loadUrl(TARGET_URL);
         } else {
-            if (retryCount < 2) {
-                retryCount++;
-                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        loadApp();
-                    }
-                }, 1500);
-            } else {
-                showErrorScreen();
-            }
+            showErrorScreen();
         }
     }
 
@@ -287,6 +285,102 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void showNativeNotification(String title, String message, String url) {
             NotificationHelper.showJobNotification(mContext, title, message);
+        }
+
+        @JavascriptInterface
+        public void downloadAndInstallApk(final String apkUrl) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        String fullUrl = apkUrl.startsWith("http") ? apkUrl : TARGET_URL + apkUrl;
+                        java.net.URL url = new java.net.URL(fullUrl);
+                        java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+                        conn.setRequestMethod("GET");
+                        conn.setConnectTimeout(15000);
+                        conn.setReadTimeout(15000);
+                        conn.connect();
+
+                        final int fileLength = conn.getContentLength();
+                        java.io.File downloadDir = mContext.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS);
+                        if (downloadDir != null && !downloadDir.exists()) downloadDir.mkdirs();
+                        
+                        final java.io.File apkFile = new java.io.File(downloadDir, "Pharmly_Update.apk");
+                        downloadedApkFile = apkFile;
+
+                        java.io.InputStream input = conn.getInputStream();
+                        java.io.FileOutputStream output = new java.io.FileOutputStream(apkFile);
+
+                        byte[] data = new byte[16384];
+                        long total = 0;
+                        int count;
+                        long lastReportTime = 0;
+
+                        while ((count = input.read(data)) != -1) {
+                            total += count;
+                            long currentTime = System.currentTimeMillis();
+                            if (fileLength > 0 && (currentTime - lastReportTime > 200 || total == fileLength)) {
+                                lastReportTime = currentTime;
+                                final int progress = (int) (total * 100L / fileLength);
+                                runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        if (webView != null) {
+                                            webView.evaluateJavascript("if(window.onApkDownloadProgress) window.onApkDownloadProgress(" + progress + ");", null);
+                                        }
+                                    }
+                                });
+                            }
+                            output.write(data, 0, count);
+                        }
+
+                        output.flush();
+                        output.close();
+                        input.close();
+
+                        // Download Complete -> Update UI to 100% and launch package installer immediately!
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                if (webView != null) {
+                                    webView.evaluateJavascript("if(window.onApkDownloadComplete) window.onApkDownloadComplete();", null);
+                                }
+                                installApkFileDirect(mContext, apkFile);
+                            }
+                        });
+
+                    } catch (final Exception e) {
+                        e.printStackTrace();
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                Toast.makeText(mContext, "Download failed! Opening in browser...", Toast.LENGTH_SHORT).show();
+                                try {
+                                    Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(apkUrl));
+                                    mContext.startActivity(intent);
+                                } catch(Exception ignored){}
+                            }
+                        });
+                    }
+                }
+            }).start();
+        }
+
+        @JavascriptInterface
+        public void promptInstallApk() {
+            if (downloadedApkFile != null && downloadedApkFile.exists()) {
+                installApkFileDirect(mContext, downloadedApkFile);
+            }
+        }
+
+        @JavascriptInterface
+        public int getAppVersionCode() {
+            try {
+                android.content.pm.PackageInfo pInfo = mContext.getPackageManager().getPackageInfo(mContext.getPackageName(), 0);
+                return pInfo.versionCode;
+            } catch (Exception e) {
+                return 1;
+            }
         }
     }
 }
