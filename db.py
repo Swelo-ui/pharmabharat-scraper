@@ -242,63 +242,100 @@ def init_db():
     backfill_posted_timestamps()
 
 
-def _norm_text(text: str) -> str:
+def _clean_str(text: str) -> str:
     if not text:
         return ""
-    t = text.lower()
-    t = re.sub(r'[^a-z0-9\s]', '', t)
+    t = text.lower().replace("&", " and ")
+    t = re.sub(r'[^a-z0-9\s]', ' ', t)
     return ' '.join(t.split())
 
 
+def _extract_brand_tokens(title: str, company: str) -> set:
+    combined = _clean_str(f"{company or ''} {title or ''}")
+    stop_words = {'hiring', 'is', 'for', 'walk', 'in', 'interview', 'jobs', 'vacancies', 'openings', 'ltd', 'limited', 'inc', 'pharma', 'pharmaceuticals', 'laboratories', 'biotech', 'lifesciences', 'qa', 'qc', 'professionals', 'plant', 'role', 'roles', 'and'}
+    return set(w for w in combined.split() if w not in stop_words and len(w) > 2)
+
+
 def _is_duplicate_job(conn, job: dict) -> bool:
-    """Smart deduplication checking title, company, banner image URL, and contact details."""
+    """
+    High-Precision Multi-Field Deduplication Engine:
+    Requires positive match across multiple verified data fields:
+    1. Direct URL Slug Match
+    2. Poster Image / Banner URL Match (non-default uploads)
+    3. Direct Email / Phone Match
+    4. Strict Multi-Field Overlap (Brand Match + Role Match + Location Match)
+    """
+    slug = job.get("slug", "")
     title = job.get("title", "")
     company = job.get("company", "")
+    location = job.get("location", "")
     banner_url = job.get("banner_url")
     email = job.get("email")
     phone = job.get("phone")
 
-    norm_t = _norm_text(title)
-    if not norm_t:
-        return False
-
-    # 1. Exact or normalized title match
-    row = conn.execute("SELECT slug, source FROM jobs WHERE lower(title) = lower(?) AND is_active = 1 LIMIT 1", (title.strip(),)).fetchone()
-    if row:
-        return True
-
-    # 2. Check matching banner_url or contact info
-    if banner_url and "wp-content" in banner_url:
-        b_row = conn.execute("SELECT slug FROM jobs WHERE banner_url = ? AND is_active = 1 LIMIT 1", (banner_url,)).fetchone()
-        if b_row:
+    # 1. Direct Slug Match
+    if slug:
+        existing = conn.execute("SELECT slug FROM jobs WHERE slug = ?", (slug,)).fetchone()
+        if existing:
             return True
 
+    # 2. Poster Image Match (unique recruitment banner upload)
+    if banner_url and "wp-content/uploads" in banner_url and "default" not in banner_url:
+        img_filename = banner_url.split("/")[-1]
+        if len(img_filename) > 5 and "Pharma-jobs" not in img_filename and "FRESHERS-Hiring" not in img_filename:
+            b_row = conn.execute("SELECT slug FROM jobs WHERE banner_url LIKE ? AND is_active = 1 LIMIT 1", (f"%{img_filename}%",)).fetchone()
+            if b_row:
+                return True
+
+    # 3. Direct Contact Info Match (Email or Phone)
     if email and len(email) > 5:
         e_row = conn.execute("SELECT slug FROM jobs WHERE lower(email) = lower(?) AND is_active = 1 LIMIT 1", (email.strip(),)).fetchone()
         if e_row:
             return True
 
     if phone and len(phone) > 7:
-        p_row = conn.execute("SELECT slug FROM jobs WHERE phone = ? AND is_active = 1 LIMIT 1", (phone.strip(),)).fetchone()
-        if p_row:
-            return True
-
-    # 3. Company & Keyword overlap match
-    norm_c = _norm_text(company)
-    comp_keyword = norm_c if norm_c and len(norm_c) > 3 else (norm_t.split()[0] if norm_t.split() else "")
-    
-    if comp_keyword and len(comp_keyword) > 3:
-        rows = conn.execute(
-            "SELECT slug, title, company FROM jobs WHERE (lower(title) LIKE ? OR lower(company) LIKE ?) AND is_active = 1",
-            (f"%{comp_keyword}%", f"%{comp_keyword}%")
-        ).fetchall()
-        
-        words1 = set(w for w in norm_t.split() if len(w) > 2)
-        for r in rows:
-            r_norm_t = _norm_text(r["title"])
-            words2 = set(w for w in r_norm_t.split() if len(w) > 2)
-            if len(words1.intersection(words2)) >= 2:
+        clean_p = re.sub(r'\D', '', phone)
+        if len(clean_p) >= 10:
+            p_row = conn.execute("SELECT slug FROM jobs WHERE phone LIKE ? AND is_active = 1 LIMIT 1", (f"%{clean_p[-10:]}%",)).fetchone()
+            if p_row:
                 return True
+
+    # 4. Strict Multi-Field Match: Brand Match + Role Match + Location Match
+    brands1 = _extract_brand_tokens(title, company)
+    if not brands1:
+        return False
+
+    t1 = _clean_str(title)
+    l1 = _clean_str(location)
+    r1_stop = {'hiring', 'is', 'for', 'walk', 'in', 'interview', 'jobs', 'vacancies', 'openings', 'ltd', 'limited', 'pharma', 'and'}
+    role1 = set(w for w in t1.split() if w not in r1_stop and len(w) > 1)
+
+    rows = conn.execute("SELECT slug, title, company, location FROM jobs WHERE is_active = 1 ORDER BY posted_timestamp DESC LIMIT 200").fetchall()
+    for r in rows:
+        brands2 = _extract_brand_tokens(r["title"], r["company"])
+        brand_overlap = brands1.intersection(brands2)
+        if not brand_overlap:
+            continue
+
+        t2 = _clean_str(r["title"])
+        l2 = _clean_str(r["location"])
+        role2 = set(w for w in t2.split() if w not in r1_stop and len(w) > 1)
+
+        role_overlap = role1.intersection(role2)
+        
+        # Location verification
+        loc_match = False
+        if l1 and l2:
+            loc_words1 = set(l1.split())
+            loc_words2 = set(l2.split())
+            if loc_words1.intersection(loc_words2):
+                loc_match = True
+        else:
+            loc_match = True  # If location missing in one, rely on strict role match
+
+        # Declare duplicate ONLY IF Brand Matches AND Role Matches (>=2 terms) AND Location Matches
+        if len(role_overlap) >= 2 and loc_match:
+            return True
 
     return False
 
