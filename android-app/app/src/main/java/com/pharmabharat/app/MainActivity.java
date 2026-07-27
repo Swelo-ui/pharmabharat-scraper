@@ -3,6 +3,7 @@ package com.pharmabharat.app;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
@@ -58,6 +59,7 @@ public class MainActivity extends Activity {
 
         loadApp();
         BootReceiver.scheduleJob(this);
+        checkInstantBroadcastNotification();
 
         // Request runtime notification permission for Android 13+ (API 33+)
         if (android.os.Build.VERSION.SDK_INT >= 33) {
@@ -65,6 +67,47 @@ public class MainActivity extends Activity {
                 requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 101);
             }
         }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        checkInstantBroadcastNotification();
+    }
+
+    private void checkInstantBroadcastNotification() {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    java.net.URL bcUrl = new java.net.URL("https://pharmabharat-scraper.onrender.com/api/push-broadcast");
+                    java.net.HttpURLConnection bcConn = (java.net.HttpURLConnection) bcUrl.openConnection();
+                    bcConn.setRequestMethod("GET");
+                    bcConn.setConnectTimeout(6000);
+                    bcConn.setReadTimeout(6000);
+                    if (bcConn.getResponseCode() == 200) {
+                        java.io.BufferedReader r = new java.io.BufferedReader(new java.io.InputStreamReader(bcConn.getInputStream()));
+                        StringBuilder sbBc = new StringBuilder();
+                        String l;
+                        while ((l = r.readLine()) != null) sbBc.append(l);
+                        r.close();
+
+                        org.json.JSONObject bcJson = new org.json.JSONObject(sbBc.toString());
+                        final String bcId = bcJson.optString("id", "");
+                        final String bcTitle = bcJson.optString("title", "Pharmly Notification");
+                        final String bcMsg = bcJson.optString("message", "");
+
+                        SharedPreferences prefs = getSharedPreferences("PharmlyPrefs", Context.MODE_PRIVATE);
+                        String lastSavedBcId = prefs.getString("last_broadcast_notif_id", "");
+
+                        if (!bcId.isEmpty() && !bcId.equals(lastSavedBcId) && !bcMsg.isEmpty()) {
+                            prefs.edit().putString("last_broadcast_notif_id", bcId).apply();
+                            NotificationHelper.showJobNotification(MainActivity.this, bcTitle, bcMsg);
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+        }).start();
     }
 
     private File downloadedApkFile = null;
