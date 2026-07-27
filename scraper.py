@@ -420,8 +420,7 @@ def parse_detail_page(html):
     soup = BeautifulSoup(html, "lxml")
     container = _find_content_container(soup)
 
-    # WordPress / Jetpack / LiteSpeed Lazy-Loading Image Pre-Processor & Banner Extraction
-    banner_url = None
+    # WordPress / Jetpack / LiteSpeed Lazy-Loading Image Pre-Processor
     if container:
         for img in container.find_all("img"):
             real_src = None
@@ -433,15 +432,24 @@ def parse_detail_page(html):
 
             if real_src:
                 img["src"] = real_src
-                if not banner_url and not any(x in real_src.lower() for x in ["logo", "favicon", "placeholder", "default-avatar", "avatar"]):
-                    banner_url = real_src
 
-    if not banner_url:
-        og_img = soup.find("meta", property="og:image") or soup.find("meta", attrs={"name": "og:image"})
-        if og_img and og_img.get("content"):
-            c_url = og_img["content"].strip()
-            if c_url and not c_url.startswith("data:") and not any(x in c_url.lower() for x in ["logo", "favicon", "default-avatar", "placeholder"]):
-                banner_url = c_url
+    # Extract Job Banner Image (Priority 1: Official Featured Thumbnail Image from meta og:image)
+    banner_url = None
+    og_img = soup.find("meta", property="og:image") or soup.find("meta", attrs={"name": "og:image"}) or soup.find("meta", attrs={"name": "twitter:image"})
+    if og_img and og_img.get("content"):
+        c_url = og_img["content"].strip()
+        if c_url and not c_url.startswith("data:") and not any(x in c_url.lower() for x in ["logo", "favicon", "default-avatar", "placeholder", "header-logo", "brand-logo", "cropped-logo"]):
+            banner_url = c_url
+
+    # Priority 2: Fallback to first non-logo content image in container if no og:image exists
+    if not banner_url and container:
+        for img in container.find_all("img"):
+            src_val = img.get("src")
+            if src_val and not src_val.startswith("data:"):
+                src_val = src_val.strip()
+                if not any(x in src_val.lower() for x in ["logo", "favicon", "placeholder", "default-avatar", "avatar", "header-logo", "brand-logo"]):
+                    banner_url = src_val
+                    break
 
     # REMOVE ALL AD ELEMENTS, IFRAMES, TABLE OF CONTENTS (TOC), AND SCRIPT BLOCKS BEFORE CONVERTING TO MARKDOWN
     ad_selectors = [
