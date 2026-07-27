@@ -51,11 +51,11 @@ def _invalidate_stats_cache():
 @app.route("/api/app-version")
 def api_app_version():
     return jsonify({
-        "version_code": 3,
-        "version_name": "3.0.0",
+        "version_code": 4,
+        "version_name": "4.0.0",
         "download_url": "https://github.com/Swelo-ui/pharmabharat-scraper/raw/main/Pharmly.apk",
         "changelog": [
-            "Seamless In-App One-Tap Auto Update System",
+            "⚡ Live Test: In-App 1-Tap Auto Update System Active!",
             "Guaranteed 5-Minute Background Job Notifications",
             "In-App Fullscreen HD Image Lightbox Viewer with Pinch-Zoom",
             "Top-scroll auto-reset for all modals"
