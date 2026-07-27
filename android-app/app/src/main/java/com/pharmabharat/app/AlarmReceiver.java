@@ -93,6 +93,41 @@ public class AlarmReceiver extends BroadcastReceiver {
                             }
                         }
                     }
+
+                    // ─── Background App Version Update Check ───
+                    try {
+                        URL verUrl = new URL("https://pharmabharat-scraper.onrender.com/api/app-version");
+                        HttpURLConnection verConn = (HttpURLConnection) verUrl.openConnection();
+                        verConn.setRequestMethod("GET");
+                        verConn.setConnectTimeout(8000);
+                        verConn.setReadTimeout(8000);
+                        if (verConn.getResponseCode() == 200) {
+                            BufferedReader r = new BufferedReader(new InputStreamReader(verConn.getInputStream()));
+                            StringBuilder sbVer = new StringBuilder();
+                            String l;
+                            while ((l = r.readLine()) != null) sbVer.append(l);
+                            r.close();
+
+                            JSONObject vJson = new JSONObject(sbVer.toString());
+                            int serverCode = vJson.optInt("version_code", 1);
+                            String verName = vJson.optString("version_name", "3.2");
+
+                            SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+                            int lastNotifiedCode = prefs.getInt("last_notified_ver_code", 0);
+                            int currentCode = 1;
+                            try {
+                                currentCode = context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionCode;
+                            } catch (Exception ignored) {}
+
+                            if (serverCode > currentCode && serverCode > lastNotifiedCode) {
+                                prefs.edit().putInt("last_notified_ver_code", serverCode).apply();
+                                String notifTitle = "🚀 Pharmly Update Available (v" + verName + ")";
+                                String notifMsg = "A new version of Pharmly is ready. Tap to install now!";
+                                NotificationHelper.showJobNotification(context, notifTitle, notifMsg);
+                            }
+                        }
+                    } catch (Exception ignored) {}
+
                 } catch (Exception e) {
                     e.printStackTrace();
                 } finally {

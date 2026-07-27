@@ -51,14 +51,14 @@ def _invalidate_stats_cache():
 @app.route("/api/app-version")
 def api_app_version():
     return jsonify({
-        "version_code": 5,
-        "version_name": "3.1.0",
+        "version_code": 6,
+        "version_name": "3.2.0",
         "download_url": "https://github.com/Swelo-ui/pharmabharat-scraper/raw/main/Pharmly.apk",
         "changelog": [
-            "⚡ In-App Progress Bar & 1-Tap Auto-Installer Active!",
-            "Real-time download progress bar (0% -> 100%) inside app",
-            "Automatic Android Package Installer prompt on download finish",
-            "Point Versioning (v3.1, v3.2 for minor updates)"
+            "⚡ Real Pharmly Logo & Background Update Notification Active!",
+            "Official Pharmly App Logo inside update modal header",
+            "Native push notification when update available (even if app is closed)",
+            "Persistent 'Update Available' banner below header until updated"
         ]
     })
 
