@@ -242,14 +242,65 @@ def init_db():
     backfill_posted_timestamps()
 
 
-def _title_exists(conn, title: str) -> bool:
-    """Check if a job with same title (case-insensitive) already exists."""
-    if not title:
+def _norm_text(text: str) -> str:
+    if not text:
+        return ""
+    t = text.lower()
+    t = re.sub(r'[^a-z0-9\s]', '', t)
+    return ' '.join(t.split())
+
+
+def _is_duplicate_job(conn, job: dict) -> bool:
+    """Smart deduplication checking title, company, banner image URL, and contact details."""
+    title = job.get("title", "")
+    company = job.get("company", "")
+    banner_url = job.get("banner_url")
+    email = job.get("email")
+    phone = job.get("phone")
+
+    norm_t = _norm_text(title)
+    if not norm_t:
         return False
-    row = conn.execute(
-        "SELECT slug FROM jobs WHERE lower(title) = lower(?) LIMIT 1", (title.strip(),)
-    ).fetchone()
-    return row is not None
+
+    # 1. Exact or normalized title match
+    row = conn.execute("SELECT slug, source FROM jobs WHERE lower(title) = lower(?) AND is_active = 1 LIMIT 1", (title.strip(),)).fetchone()
+    if row:
+        return True
+
+    # 2. Check matching banner_url or contact info
+    if banner_url and "wp-content" in banner_url:
+        b_row = conn.execute("SELECT slug FROM jobs WHERE banner_url = ? AND is_active = 1 LIMIT 1", (banner_url,)).fetchone()
+        if b_row:
+            return True
+
+    if email and len(email) > 5:
+        e_row = conn.execute("SELECT slug FROM jobs WHERE lower(email) = lower(?) AND is_active = 1 LIMIT 1", (email.strip(),)).fetchone()
+        if e_row:
+            return True
+
+    if phone and len(phone) > 7:
+        p_row = conn.execute("SELECT slug FROM jobs WHERE phone = ? AND is_active = 1 LIMIT 1", (phone.strip(),)).fetchone()
+        if p_row:
+            return True
+
+    # 3. Company & Keyword overlap match
+    norm_c = _norm_text(company)
+    comp_keyword = norm_c if norm_c and len(norm_c) > 3 else (norm_t.split()[0] if norm_t.split() else "")
+    
+    if comp_keyword and len(comp_keyword) > 3:
+        rows = conn.execute(
+            "SELECT slug, title, company FROM jobs WHERE (lower(title) LIKE ? OR lower(company) LIKE ?) AND is_active = 1",
+            (f"%{comp_keyword}%", f"%{comp_keyword}%")
+        ).fetchall()
+        
+        words1 = set(w for w in norm_t.split() if len(w) > 2)
+        for r in rows:
+            r_norm_t = _norm_text(r["title"])
+            words2 = set(w for w in r_norm_t.split() if len(w) > 2)
+            if len(words1.intersection(words2)) >= 2:
+                return True
+
+    return False
 
 
 def upsert_job(job: dict) -> bool:
@@ -259,8 +310,8 @@ def upsert_job(job: dict) -> bool:
 
     Deduplication:
     - slug-based: same URL slug = same job (always skip)
-    - title-based: same title from any source = duplicate (skip)
-      Prefer the first source that inserted it (usually pharmabharat).
+    - smart dedup: title, company, banner image URL, or email/phone overlap
+      Prefer the first source that inserted it (pharmabharat priority).
     """
     with get_conn() as conn:
         # Check by slug first
@@ -270,8 +321,8 @@ def upsert_job(job: dict) -> bool:
         if existing:
             return False
 
-        # Title-based dedup: agar same title pehle se ho (any source), skip karo
-        if _title_exists(conn, job.get("title")):
+        # Smart deduplication: check title, company, banner image, email/phone
+        if _is_duplicate_job(conn, job):
             return False
 
         posted_ts = parse_posted_timestamp(job.get("posted_date_raw")) or int(time.time())
