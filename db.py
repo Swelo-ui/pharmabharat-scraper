@@ -300,17 +300,20 @@ def _is_duplicate_job(conn, job: dict) -> bool:
             if p_row:
                 return True
 
-    # 4. Strict Multi-Field Match: Brand Match + Role Match + Location Match
+    # 4. Strict Multi-Field Match: Brand Match + Role Match + Location Match + Experience Match
     brands1 = _extract_brand_tokens(title, company)
     if not brands1:
         return False
 
     t1 = _clean_str(title)
     l1 = _clean_str(location)
+    exp1_raw = _clean_str(job.get("experience_raw", ""))
+    is_fresher1 = int(job.get("is_fresher", 0))
+
     r1_stop = {'hiring', 'is', 'for', 'walk', 'in', 'interview', 'jobs', 'vacancies', 'openings', 'ltd', 'limited', 'pharma', 'and'}
     role1 = set(w for w in t1.split() if w not in r1_stop and len(w) > 1)
 
-    rows = conn.execute("SELECT slug, title, company, location FROM jobs WHERE is_active = 1 ORDER BY posted_timestamp DESC LIMIT 200").fetchall()
+    rows = conn.execute("SELECT slug, title, company, location, experience_raw, is_fresher FROM jobs WHERE is_active = 1 ORDER BY posted_timestamp DESC LIMIT 200").fetchall()
     for r in rows:
         brands2 = _extract_brand_tokens(r["title"], r["company"])
         brand_overlap = brands1.intersection(brands2)
@@ -333,8 +336,17 @@ def _is_duplicate_job(conn, job: dict) -> bool:
         else:
             loc_match = True  # If location missing in one, rely on strict role match
 
-        # Declare duplicate ONLY IF Brand Matches AND Role Matches (>=2 terms) AND Location Matches
-        if len(role_overlap) >= 2 and loc_match:
+        # Experience Level Verification
+        exp2_raw = _clean_str(r["experience_raw"] or "")
+        is_fresher2 = int(r["is_fresher"] or 0)
+        
+        exp_match = True
+        # If one is strictly Fresher-only and the other requires multi-year experience (e.g. 5-10 years), they are DIFFERENT jobs!
+        if (is_fresher1 and not is_fresher2 and "year" in exp2_raw and "0" not in exp2_raw) or (is_fresher2 and not is_fresher1 and "year" in exp1_raw and "0" not in exp1_raw):
+            exp_match = False
+
+        # Declare duplicate ONLY IF Brand Matches AND Role Matches (>=2 terms) AND Location Matches AND Experience Matches
+        if len(role_overlap) >= 2 and loc_match and exp_match:
             return True
 
     return False
