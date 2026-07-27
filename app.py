@@ -75,14 +75,14 @@ def api_push_broadcast():
 @app.route("/api/app-version")
 def api_app_version():
     return jsonify({
-        "version_code": 7,
-        "version_name": "3.3.0",
+        "version_code": 8,
+        "version_name": "3.4.0",
         "download_url": "https://github.com/Swelo-ui/pharmabharat-scraper/raw/main/Pharmly.apk",
         "changelog": [
-            "⚡ Official Version 3.3.0 Update!",
-            "Smart Cross-Source Deduplication (PharmaBharat Priority)",
-            "Single-Line Material You Update Card & Real Logo",
-            "Real-Time In-App Progress Bar & Auto-Installer Prompt"
+            "⚡ Official Version 3.4.0 Update!",
+            "High-Precision 4-Field Verified Deduplication (Brand, Role, Location & Experience)",
+            "Zero False Duplicates — Fresher & Experienced roles preserved separately",
+            "Single-Line Material You Banner, Live Progress Bar & Auto-Installer"
         ]
     })
 
