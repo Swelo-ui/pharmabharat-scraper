@@ -433,21 +433,24 @@ def parse_detail_page(html):
             if real_src:
                 img["src"] = real_src
 
-    # Extract Job Banner Image (Priority 1: Official Featured Thumbnail Image from meta og:image)
+    # Extract Job Banner Image with Source-Aware Priority Logic
     banner_url = None
     og_img = soup.find("meta", property="og:image") or soup.find("meta", attrs={"name": "og:image"}) or soup.find("meta", attrs={"name": "twitter:image"})
     if og_img and og_img.get("content"):
         c_url = og_img["content"].strip()
-        if c_url and not c_url.startswith("data:") and not any(x in c_url.lower() for x in ["logo", "favicon", "default-avatar", "placeholder", "header-logo", "brand-logo", "cropped-logo"]):
+        # Filter out site logos and generic PharmaBharat site template banners (e.g., Pharma-jobs-2026-...)
+        is_generic_placeholder = any(x in c_url.lower() for x in ["logo", "favicon", "default-avatar", "placeholder", "header-logo", "brand-logo", "cropped-logo", "pharma-jobs-2026", "pharma-jobs-2"])
+        if c_url and not c_url.startswith("data:") and not is_generic_placeholder:
             banner_url = c_url
 
-    # Priority 2: Fallback to first non-logo content image in container if no og:image exists
+    # Fallback to first real non-logo flyer image in container if no valid og:image
     if not banner_url and container:
         for img in container.find_all("img"):
             src_val = img.get("src")
             if src_val and not src_val.startswith("data:"):
                 src_val = src_val.strip()
-                if not any(x in src_val.lower() for x in ["logo", "favicon", "placeholder", "default-avatar", "avatar", "header-logo", "brand-logo"]):
+                is_logo_or_small = any(x in src_val.lower() for x in ["logo", "favicon", "placeholder", "default-avatar", "avatar", "header-logo", "brand-logo", "vector-", "200x200"])
+                if not is_logo_or_small:
                     banner_url = src_val
                     break
 
