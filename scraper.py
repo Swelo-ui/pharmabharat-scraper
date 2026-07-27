@@ -420,28 +420,28 @@ def parse_detail_page(html):
     soup = BeautifulSoup(html, "lxml")
     container = _find_content_container(soup)
 
-    # Extract Job Banner Image (Flyers, Walk-In interview posters, Recruitment banners)
+    # WordPress / Jetpack / LiteSpeed Lazy-Loading Image Pre-Processor & Banner Extraction
     banner_url = None
-    og_img = soup.find("meta", property="og:image") or soup.find("meta", attrs={"name": "og:image"})
-    if og_img and og_img.get("content"):
-        c_url = og_img["content"].strip()
-        if c_url and not any(x in c_url.lower() for x in ["logo", "favicon", "default-avatar", "placeholder"]):
-            banner_url = c_url
-
-    if not banner_url and container:
+    if container:
         for img in container.find_all("img"):
-            src_val = (
-                img.get("data-full-url") or
-                img.get("data-orig-file") or
-                img.get("data-lazy-src") or
-                img.get("data-src") or
-                img.get("src")
-            )
-            if src_val:
-                src_val = src_val.strip()
-                if not any(x in src_val.lower() for x in ["logo", "favicon", "placeholder", "data:image"]):
-                    banner_url = src_val
+            real_src = None
+            for attr in ["data-full-url", "data-orig-file", "data-lazy-src", "data-src", "data-large-file", "src"]:
+                val = img.get(attr)
+                if val and isinstance(val, str) and not val.strip().startswith("data:"):
+                    real_src = val.strip()
                     break
+
+            if real_src:
+                img["src"] = real_src
+                if not banner_url and not any(x in real_src.lower() for x in ["logo", "favicon", "placeholder", "default-avatar", "avatar"]):
+                    banner_url = real_src
+
+    if not banner_url:
+        og_img = soup.find("meta", property="og:image") or soup.find("meta", attrs={"name": "og:image"})
+        if og_img and og_img.get("content"):
+            c_url = og_img["content"].strip()
+            if c_url and not c_url.startswith("data:") and not any(x in c_url.lower() for x in ["logo", "favicon", "default-avatar", "placeholder"]):
+                banner_url = c_url
 
     # REMOVE ALL AD ELEMENTS, IFRAMES, TABLE OF CONTENTS (TOC), AND SCRIPT BLOCKS BEFORE CONVERTING TO MARKDOWN
     ad_selectors = [

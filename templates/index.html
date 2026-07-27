@@ -2480,12 +2480,12 @@ function renderModalJobData(job) {
   document.getElementById("modal-apply-btn").href = job.url;
 
   // ── Banner Card & Overview Tab ──
-  const bannerHtml = job.banner_url ? `
+  const bannerHtml = (job.banner_url && !job.banner_url.startsWith('data:')) ? `
     <div class="job-banner-card">
       <div class="job-banner-badge">
         <i data-lucide="image" style="width:12px;height:12px;"></i> Official Recruitment Flyer / Poster
       </div>
-      <img src="${job.banner_url}" class="job-banner-img" alt="Official Job Banner" onclick="window.open('${job.banner_url}', '_blank')">
+      <img src="${job.banner_url}" class="job-banner-img" alt="Official Job Banner" onclick="window.open('${job.banner_url}', '_blank')" onerror="if(this.closest('.job-banner-card')) this.closest('.job-banner-card').style.display='none'">
     </div>` : '';
 
   const degrees = job.degrees || detectDegrees(job.title, job.description_md, job.category);
