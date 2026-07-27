@@ -2826,6 +2826,7 @@ function checkAppUpdate() {
     .then(r => r.json())
     .then(data => {
       if (!data || !data.version_code) return;
+      currentServerVerCode = data.version_code;
       appUpdateDownloadUrl = data.download_url || appUpdateDownloadUrl;
       
       let localVersionCode = 1;
@@ -2835,12 +2836,15 @@ function checkAppUpdate() {
         } catch(e) {}
       }
 
-      if (data.version_code > localVersionCode) {
+      const installedVerCode = parseInt(localStorage.getItem("installed_ver_code") || "0", 10);
+
+      // Only prompt update if server version is strictly greater than local app version AND not already marked installed in this session
+      if (data.version_code > localVersionCode && data.version_code > installedVerCode) {
         const verTag = document.getElementById("update-version-tag");
         if (verTag) verTag.textContent = `New Version ${data.version_name || ''} Ready`;
         
         const homeVerTag = document.getElementById("home-update-ver-tag");
-        if (homeVerTag) homeVerTag.textContent = `(v${data.version_name || ''})`;
+        if (homeVerTag) homeVerTag.textContent = `v${data.version_name || ''}`;
 
         const homeBanner = document.getElementById("home-update-banner");
         if (homeBanner) homeBanner.style.display = "flex";
@@ -2860,6 +2864,7 @@ function checkAppUpdate() {
     .catch(() => {});
 }
 
+let currentServerVerCode = 0;
 let isApkDownloadFinished = false;
 
 function triggerInAppUpdate() {
@@ -2902,6 +2907,14 @@ window.onApkDownloadProgress = function(percent) {
 // Global Callback from Native Android Java when APK download is 100% complete
 window.onApkDownloadComplete = function() {
   isApkDownloadFinished = true;
+  if (currentServerVerCode) {
+    localStorage.setItem("installed_ver_code", currentServerVerCode);
+  }
+  
+  // Hide home banner since update is installed
+  const homeBanner = document.getElementById("home-update-banner");
+  if (homeBanner) homeBanner.style.display = "none";
+
   const fill = document.getElementById("update-progress-fill");
   const txt = document.getElementById("update-percent-text");
   const statusTxt = document.getElementById("update-status-text");
