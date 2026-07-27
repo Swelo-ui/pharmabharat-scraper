@@ -75,14 +75,14 @@ def api_push_broadcast():
 @app.route("/api/app-version")
 def api_app_version():
     return jsonify({
-        "version_code": 6,
-        "version_name": "3.2.0",
+        "version_code": 7,
+        "version_name": "3.3.0",
         "download_url": "https://github.com/Swelo-ui/pharmabharat-scraper/raw/main/Pharmly.apk",
         "changelog": [
-            "⚡ Real Pharmly Logo & Background Update Notification Active!",
-            "Official Pharmly App Logo inside update modal header",
-            "Native push notification when update available (even if app is closed)",
-            "Persistent 'Update Available' banner below header until updated"
+            "⚡ Official Version 3.3.0 Update!",
+            "Smart Cross-Source Deduplication (PharmaBharat Priority)",
+            "Single-Line Material You Update Card & Real Logo",
+            "Real-Time In-App Progress Bar & Auto-Installer Prompt"
         ]
     })
 
