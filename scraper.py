@@ -574,6 +574,20 @@ def parse_detail_page(html):
     elif "clinical" in full_text or "tmf" in full_text or "cra" in full_text:
         category = "clinical-research-jobs"
 
+    # Extract Original Article Published Date
+    page_posted_date = None
+    time_tag = soup.find("time", class_=re.compile(r"entry-date|published", re.I)) or soup.find("time")
+    if time_tag:
+        page_posted_date = time_tag.get_text(strip=True)
+    if not page_posted_date:
+        meta_pub = soup.find("meta", property="article:published_time") or soup.find("meta", attrs={"name": "article:published_time"})
+        if meta_pub and meta_pub.get("content"):
+            page_posted_date = meta_pub["content"].split("T")[0]
+    if not page_posted_date and page_title:
+        m_dt = re.search(r"\b(\d{1,2}(?:st|nd|rd|th)?\s+(?:Jan|Feb|Mar|Apr|May|Jun|June|Jul|July|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+2026)\b", page_title, re.I)
+        if m_dt:
+            page_posted_date = m_dt.group(1)
+
     return {
         "title": page_title,
         "company": page_company,
@@ -581,6 +595,7 @@ def parse_detail_page(html):
         "application_type": app_type,
         "is_fresher": is_fresher,
         "is_fresher_friendly": is_fresher,
+        "posted_date_raw": page_posted_date,
         "description_md": markdown.strip(),
         "extra": extra,
     }
