@@ -2362,9 +2362,22 @@ function switchModalTab(tab) {
 
 function formatJobDate(job) {
   if (!job) return "";
+  
+  // If first seen today (within last 24h), show relative time so dates don't jump
+  const now = Math.floor(Date.now() / 1000);
+  if (job.first_seen_at) {
+    const diff = now - job.first_seen_at;
+    if (diff < 86400 && diff >= 0) {
+      if (diff < 120) return "Just now";
+      if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+      return `${Math.floor(diff / 3600)}h ago`;
+    }
+  }
+
   if (job.posted_date_raw && job.posted_date_raw.trim().length > 3) {
     return job.posted_date_raw.trim();
   }
+
   if (job.first_seen_at) {
     try {
       const d = new Date(job.first_seen_at * 1000);
@@ -2373,18 +2386,11 @@ function formatJobDate(job) {
         const day = d.getDate();
         const month = monthNames[d.getMonth()];
         const year = d.getFullYear();
-        let hours = d.getHours();
-        const minutes = d.getMinutes().toString().padStart(2, '0');
-        const ampm = hours >= 12 ? 'PM' : 'AM';
-        hours = hours % 12;
-        hours = hours ? hours : 12;
-        return `${month} ${day}, ${year} · ${hours}:${minutes} ${ampm}`;
+        return `${month} ${day}, ${year}`;
       }
     } catch(e) {}
   }
-  const today = new Date();
-  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-  return `${monthNames[today.getMonth()]} ${today.getDate()}, ${today.getFullYear()}`;
+  return "Recent";
 }
 
 // Render Jobs Feed
