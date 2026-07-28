@@ -2446,82 +2446,94 @@ function renderJobs(data) {
   // Cache all loaded jobs by slug for rich sharing
   jobs.forEach(j => { if (j && j.slug) allLoadedJobs[j.slug] = j; });
 
-  container.innerHTML = jobs.map(job => {
-    const isSaved = state.savedSlugs.includes(job.slug);
-    const hasContact = job.email || job.phone;
-    const initial = getCompanyInitial(job.company);
-    const avatarStyle = getAvatarStyle(job.company);
-    const degrees = job.degrees || detectDegrees(job.title, job.description_md, job.category);
+function createJobCardInnerHtml(job) {
+  const isSaved = state.savedSlugs.includes(job.slug);
+  const hasContact = job.email || job.phone;
+  const initial = getCompanyInitial(job.company);
+  const avatarStyle = getAvatarStyle(job.company);
+  const degrees = job.degrees || detectDegrees(job.title, job.description_md, job.category);
 
-    return `
-      <div class="job-card" onclick="openJobModal('${job.slug}')">
-        <div class="job-card-top">
-          <div class="company-avatar" style="${avatarStyle}">${initial}</div>
-          <div class="job-header-info">
-            <div class="company-sub-line">
-              <span class="company-name-text">${job.company || "Pharma Company"}</span>
-              <span class="posted-date">${formatJobDate(job)}</span>
-            </div>
-            <span class="job-title">${job.title || "Untitled Position"}</span>
-            <div class="badge-group">
-              ${degrees.includes('B.Pharm') ? '<span class="badge badge-bpharm"><i data-lucide="graduation-cap" style="width:11px;height:11px;"></i> B.PHARM</span>' : ''}
-              ${degrees.includes('M.Pharm') ? '<span class="badge badge-mpharm"><i data-lucide="award" style="width:11px;height:11px;"></i> M.PHARM</span>' : ''}
-              ${degrees.includes('Pharm.D') ? '<span class="badge badge-pharmd"><i data-lucide="book-open" style="width:11px;height:11px;"></i> PHARM.D</span>' : ''}
-              ${degrees.includes('D.Pharm') ? '<span class="badge badge-dpharm"><i data-lucide="scroll" style="width:11px;height:11px;"></i> D.PHARM</span>' : ''}
-              ${job.is_fresher_friendly ? '<span class="badge badge-fresher"><i data-lucide="sparkles" style="width:11px;height:11px;"></i> FRESHER</span>' : ''}
-              ${job.verified ? '<span class="badge badge-verified"><i data-lucide="shield-check" style="width:11px;height:11px;"></i> VERIFIED</span>' : ''}
-              ${job.application_type && (job.application_type.toLowerCase().includes("virtual") || job.application_type.toLowerCase().includes("video") || job.application_type.toLowerCase().includes("telephonic") || job.application_type.toLowerCase().includes("online interview")) ? '<span class="badge badge-virtual"><i data-lucide="video" style="width:11px;height:11px;"></i> VIRTUAL INTERVIEW</span>' : ''}
-              ${job.application_type && job.application_type.toLowerCase().includes("walk") && !job.application_type.toLowerCase().includes("virtual") ? '<span class="badge badge-walkin"><i data-lucide="user-check" style="width:11px;height:11px;"></i> WALK-IN</span>' : ''}
-            </div>
-          </div>
+  return `
+    <div class="job-card-top">
+      <div class="company-avatar" style="${avatarStyle}">${initial}</div>
+      <div class="job-header-info">
+        <div class="company-sub-line">
+          <span class="company-name-text">${job.company || "Pharma Company"}</span>
+          <span class="posted-date">${formatJobDate(job)}</span>
         </div>
-
-        ${job.banner_url ? `
-        <div class="card-banner-thumb" onclick="event.stopPropagation(); openJobModal('${job.slug}')">
-          <img src="${job.banner_url}" alt="Job Banner" loading="lazy" onerror="this.parentElement.style.display='none'">
-        </div>` : ''}
-
-        <div class="job-meta-grid">
-          ${job.location ? `<span class="meta-pill"><i data-lucide="map-pin" style="width:13px;height:13px;color:var(--primary);"></i> ${job.location}</span>` : ''}
-          ${job.experience_raw ? `<span class="meta-pill"><i data-lucide="briefcase" style="width:13px;height:13px;color:var(--ink-muted);"></i> <strong>${job.experience_raw}</strong></span>` : ''}
-          ${(() => { const s = sanitizeSalary(job.salary); return s ? `<span class="meta-pill highlight-salary"><i data-lucide="coins" style="width:13px;height:13px;"></i> <strong>${s}</strong></span>` : ''; })()}
-        </div>
-
-        ${hasContact ? `
-          <div class="contact-bar" onclick="event.stopPropagation()">
-            ${job.email ? `
-              <span class="contact-chip" title="Click to copy email" onclick="copyText('${job.email}', 'Email', event)">
-                <span class="chip-type">EMAIL</span>
-                <span class="chip-icon"><i data-lucide="mail" style="width:12px;height:12px;"></i></span>
-                <span class="contact-val">${job.email}</span>
-              </span>` : ''}
-            ${job.phone ? `
-              <span class="contact-chip" title="Click to copy phone" onclick="copyText('${job.phone}', 'Phone', event)">
-                <span class="chip-type">CALL</span>
-                <span class="chip-icon"><i data-lucide="phone" style="width:12px;height:12px;"></i></span>
-                <span class="contact-val">${job.phone}</span>
-              </span>` : ''}
-          </div>
-        ` : ''}
-
-        <div class="job-footer-row">
-          <div class="action-buttons" style="width:100%; justify-content: space-between;" onclick="event.stopPropagation()">
-            <div style="display:flex; gap:6px;">
-              <button class="btn-action btn-bookmark ${isSaved ? 'saved' : ''}" data-slug="${job.slug}" onclick="toggleSave('${job.slug}', event)">
-                ${isSaved ? '<i data-lucide="bookmark-check" style="width:14px;height:14px;"></i> Saved' : '<i data-lucide="bookmark" style="width:14px;height:14px;"></i> Save'}
-              </button>
-              <button class="btn-action" onclick="shareJobBySlug('${job.slug}', event)">
-                <i data-lucide="share-2" style="width:14px;height:14px;"></i> Share
-              </button>
-            </div>
-            <a class="btn-action btn-apply" href="${job.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">
-              Apply <i data-lucide="external-link" style="width:12px;height:12px;"></i>
-            </a>
-          </div>
+        <span class="job-title">${job.title || "Untitled Position"}</span>
+        <div class="badge-group">
+          ${degrees.includes('B.Pharm') ? '<span class="badge badge-bpharm"><i data-lucide="graduation-cap" style="width:11px;height:11px;"></i> B.PHARM</span>' : ''}
+          ${degrees.includes('M.Pharm') ? '<span class="badge badge-mpharm"><i data-lucide="award" style="width:11px;height:11px;"></i> M.PHARM</span>' : ''}
+          ${degrees.includes('Pharm.D') ? '<span class="badge badge-pharmd"><i data-lucide="book-open" style="width:11px;height:11px;"></i> PHARM.D</span>' : ''}
+          ${degrees.includes('D.Pharm') ? '<span class="badge badge-dpharm"><i data-lucide="scroll" style="width:11px;height:11px;"></i> D.PHARM</span>' : ''}
+          ${job.is_fresher_friendly ? '<span class="badge badge-fresher"><i data-lucide="sparkles" style="width:11px;height:11px;"></i> FRESHER</span>' : ''}
+          ${job.verified ? '<span class="badge badge-verified"><i data-lucide="shield-check" style="width:11px;height:11px;"></i> VERIFIED</span>' : ''}
+          ${job.application_type && (job.application_type.toLowerCase().includes("virtual") || job.application_type.toLowerCase().includes("video") || job.application_type.toLowerCase().includes("telephonic") || job.application_type.toLowerCase().includes("online interview")) ? '<span class="badge badge-virtual"><i data-lucide="video" style="width:11px;height:11px;"></i> VIRTUAL INTERVIEW</span>' : ''}
+          ${job.application_type && job.application_type.toLowerCase().includes("walk") && !job.application_type.toLowerCase().includes("virtual") ? '<span class="badge badge-walkin"><i data-lucide="user-check" style="width:11px;height:11px;"></i> WALK-IN</span>' : ''}
         </div>
       </div>
-    `;
-  }).join("");
+    </div>
+
+    ${job.banner_url ? `
+    <div class="card-banner-thumb" onclick="event.stopPropagation(); openJobModal('${job.slug}')">
+      <img src="${job.banner_url}" alt="Job Banner" loading="lazy" onerror="this.parentElement.style.display='none'">
+    </div>` : ''}
+
+    <div class="job-meta-grid">
+      ${job.location ? `<span class="meta-pill"><i data-lucide="map-pin" style="width:13px;height:13px;color:var(--primary);"></i> ${job.location}</span>` : ''}
+      ${job.experience_raw ? `<span class="meta-pill"><i data-lucide="briefcase" style="width:13px;height:13px;color:var(--ink-muted);"></i> <strong>${job.experience_raw}</strong></span>` : ''}
+      ${(() => { const s = sanitizeSalary(job.salary); return s ? `<span class="meta-pill highlight-salary"><i data-lucide="coins" style="width:13px;height:13px;"></i> <strong>${s}</strong></span>` : ''; })()}
+    </div>
+
+    ${hasContact ? `
+      <div class="contact-bar" onclick="event.stopPropagation()">
+        ${job.email ? `
+          <span class="contact-chip" title="Click to copy email" onclick="copyText('${job.email}', 'Email', event)">
+            <span class="chip-type">EMAIL</span>
+            <span class="chip-icon"><i data-lucide="mail" style="width:12px;height:12px;"></i></span>
+            <span class="contact-val">${job.email}</span>
+          </span>` : ''}
+        ${job.phone ? `
+          <span class="contact-chip" title="Click to copy phone" onclick="copyText('${job.phone}', 'Phone', event)">
+            <span class="chip-type">CALL</span>
+            <span class="chip-icon"><i data-lucide="phone" style="width:12px;height:12px;"></i></span>
+            <span class="contact-val">${job.phone}</span>
+          </span>` : ''}
+      </div>
+    ` : ''}
+
+    <div class="job-footer-row">
+      <div class="action-buttons" style="width:100%; justify-content: space-between;" onclick="event.stopPropagation()">
+        <div style="display:flex; gap:6px;">
+          <button class="btn-action btn-bookmark ${isSaved ? 'saved' : ''}" data-slug="${job.slug}" onclick="toggleSave('${job.slug}', event)">
+            ${isSaved ? '<i data-lucide="bookmark-check" style="width:14px;height:14px;"></i> Saved' : '<i data-lucide="bookmark" style="width:14px;height:14px;"></i> Save'}
+          </button>
+          <button class="btn-action" onclick="shareJobBySlug('${job.slug}', event)">
+            <i data-lucide="share-2" style="width:14px;height:14px;"></i> Share
+          </button>
+        </div>
+        <a class="btn-action btn-apply" href="${job.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">
+          Apply <i data-lucide="external-link" style="width:12px;height:12px;"></i>
+        </a>
+      </div>
+    </div>`;
+}
+
+function updateFeedJobCard(job) {
+  if (!job || !job.slug) return;
+  const card = document.getElementById(`card-${job.slug}`);
+  if (card) {
+    card.innerHTML = createJobCardInnerHtml(job);
+    if (window.lucide) lucide.createIcons();
+  }
+}
+
+  container.innerHTML = jobs.map(job => `
+    <div class="job-card" id="card-${job.slug}" data-job-slug="${job.slug}" onclick="openJobModal('${job.slug}')">
+      ${createJobCardInnerHtml(job)}
+    </div>
+  `).join("");
 
   const totalPages = Math.max(1, Math.ceil(data.total / data.per_page));
   document.getElementById("pager").style.display = totalPages > 1 && !state.saved_only ? "flex" : "none";
@@ -2718,6 +2730,7 @@ function openJobModal(slug) {
     .then(job => {
       if (job && job.slug) {
         allLoadedJobs[job.slug] = job;
+        updateFeedJobCard(job); // <--- INSTANTLY UPDATE HOME SCREEN JOB CARD!
         // Re-render silently with updated data if modal is still open
         if (document.getElementById("job-modal").classList.contains("open") && currentModalJob && currentModalJob.slug === slug) {
           renderModalJobData(job);
