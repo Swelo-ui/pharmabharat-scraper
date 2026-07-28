@@ -2587,7 +2587,8 @@ function renderModalJobData(job) {
   currentModalJob = job;
   document.getElementById("modal-company").textContent = job.company || "PHARMA COMPANY";
   document.getElementById("modal-title").textContent = job.title || "Job Details";
-  document.getElementById("modal-date").textContent = formatJobDate(job) ? `Posted: ${formatJobDate(job)}` : "";
+  const formattedDateStr = formatJobDate(job);
+  document.getElementById("modal-date").innerHTML = formattedDateStr ? `Posted: ${formattedDateStr}` : "";
   document.getElementById("modal-apply-btn").href = job.url;
 
   // ── Banner Card & Overview Tab ──
