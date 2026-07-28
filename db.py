@@ -143,7 +143,8 @@ KNOWN_BRANDS = [
     "Jubilant Biosys", "Altrakem", "Salus Pharmaceuticals", "Immacule Lifesciences", "Baroque Pharmaceuticals",
     "Zenotech Laboratories", "Clarivate", "Ciron Drugs", "Stellar Formulations", "Piramal Pharma", "Marisym Biologicals",
     "Harris", "Bristol Myers Squibb", "Script Assist", "UPSC", "IIT Hyderabad", "West Coast Pharmaceutical",
-    "Milan Laboratories", "Gufic Biosciences", "Reckitt", "Heranba Group", "Dr. Reddy", "Klinera", "Mitocon Biopharma"
+    "Milan Laboratories", "Gufic Biosciences", "Reckitt", "Heranba Group", "Dr. Reddy", "Klinera", "Mitocon Biopharma",
+    "Intas Pharmaceuticals", "Intas", "Hetero Labs", "Hetero", "Elixir Pharma", "Covalent Laboratories"
 ]
 
 def extract_company_from_text(title: str, text: str = "") -> str:
