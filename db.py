@@ -309,53 +309,61 @@ def _is_duplicate_job(conn, job: dict) -> bool:
             if p_row:
                 return True
 
-    # 4. Strict Multi-Field Match: Brand Match + Role Match + Location Match + Experience Match
+    # 4. High-Precision Multi-Field & Title Jaccard Similarity Match
     brands1 = _extract_brand_tokens(title, company)
     if not brands1:
         return False
 
-    t1 = _clean_str(title)
+    stop_words = {
+        'hiring', 'is', 'for', 'walk', 'in', 'interview', 'jobs', 'vacancies', 'openings',
+        'ltd', 'limited', 'inc', 'pharma', 'pharmaceuticals', 'laboratories', 'biotech',
+        'lifesciences', 'professionals', 'plant', 'role', 'roles', 'and', 'at', 'with', 'apply', 'now', '2026'
+    }
+    t1_clean = _clean_str(title)
+    kw1 = set(w for w in t1_clean.split() if w not in stop_words and len(w) > 2)
+    if not kw1:
+        return False
+
     l1 = _clean_str(location)
     exp1_raw = _clean_str(job.get("experience_raw", ""))
     is_fresher1 = int(job.get("is_fresher", 0))
 
-    r1_stop = {'hiring', 'is', 'for', 'walk', 'in', 'interview', 'jobs', 'vacancies', 'openings', 'ltd', 'limited', 'pharma', 'and'}
-    role1 = set(w for w in t1.split() if w not in r1_stop and len(w) > 1)
-
-    rows = conn.execute("SELECT slug, title, company, location, experience_raw, is_fresher FROM jobs WHERE is_active = 1 ORDER BY posted_timestamp DESC LIMIT 200").fetchall()
+    rows = conn.execute("SELECT slug, title, company, location, experience_raw, is_fresher FROM jobs WHERE is_active = 1 ORDER BY posted_timestamp DESC LIMIT 250").fetchall()
     for r in rows:
         brands2 = _extract_brand_tokens(r["title"], r["company"])
-        brand_overlap = brands1.intersection(brands2)
-        if not brand_overlap:
+        if not brands1.intersection(brands2):
             continue
 
-        t2 = _clean_str(r["title"])
-        l2 = _clean_str(r["location"])
-        role2 = set(w for w in t2.split() if w not in r1_stop and len(w) > 1)
+        t2_clean = _clean_str(r["title"])
+        kw2 = set(w for w in t2_clean.split() if w not in stop_words and len(w) > 2)
+        if not kw2:
+            continue
 
-        role_overlap = role1.intersection(role2)
-        
+        union = kw1.union(kw2)
+        intersection = kw1.intersection(kw2)
+        jaccard = len(intersection) / float(len(union)) if union else 0.0
+
         # Location verification
-        loc_match = False
+        l2 = _clean_str(r["location"])
+        loc_mismatch = False
         if l1 and l2:
-            loc_words1 = set(l1.split())
-            loc_words2 = set(l2.split())
-            if loc_words1.intersection(loc_words2):
-                loc_match = True
-        else:
-            loc_match = True  # If location missing in one, rely on strict role match
+            l1_words = set(l1.split())
+            l2_words = set(l2.split())
+            if not l1_words.intersection(l2_words):
+                loc_mismatch = True
 
         # Experience Level Verification
         exp2_raw = _clean_str(r["experience_raw"] or "")
         is_fresher2 = int(r["is_fresher"] or 0)
-        
-        exp_match = True
-        # If one is strictly Fresher-only and the other requires multi-year experience (e.g. 5-10 years), they are DIFFERENT jobs!
+        exp_mismatch = False
         if (is_fresher1 and not is_fresher2 and "year" in exp2_raw and "0" not in exp2_raw) or (is_fresher2 and not is_fresher1 and "year" in exp1_raw and "0" not in exp1_raw):
-            exp_match = False
+            exp_mismatch = True
 
-        # Declare duplicate ONLY IF Brand Matches AND Role Matches (>=2 terms) AND Location Matches AND Experience Matches
-        if len(role_overlap) >= 2 and loc_match and exp_match:
+        if loc_mismatch or exp_mismatch:
+            continue
+
+        # Declare duplicate ONLY IF Title Jaccard Similarity >= 0.65
+        if jaccard >= 0.65:
             return True
 
     return False
