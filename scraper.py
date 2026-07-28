@@ -500,6 +500,18 @@ def parse_detail_page(html):
         if m:
             extra["salary"] = m.group().strip()
 
+    # Auto-detect Location from text if not in overview table
+    if not extra["location"]:
+        loc = _extract_location(markdown.splitlines())
+        if loc:
+            extra["location"] = loc
+
+    # Auto-detect Experience from text if not in overview table
+    if not extra["experience_raw"]:
+        exp_m = EXPERIENCE_RE.search(markdown)
+        if exp_m:
+            extra["experience_raw"] = exp_m.group().strip()
+
     # Extract Title & Company from Detail Page HTML
     page_title = None
     h1_tag = soup.find("h1", class_=re.compile(r"entry-title|post-title|title", re.I)) or soup.find("h1")
@@ -515,9 +527,43 @@ def parse_detail_page(html):
 
     page_company = extract_company_from_title(page_title) if page_title else None
 
+    # Auto-detect Application Type
+    app_type = "Online Apply"
+    full_text = f"{page_title or ''} {markdown}".lower()
+    if "walk-in" in full_text or "walk in" in full_text or "interview drive" in full_text:
+        app_type = "Walk-In Interview"
+    elif "virtual" in full_text or "online interview" in full_text:
+        app_type = "Virtual Interview"
+
+    # Auto-detect Fresher eligibility
+    is_fresher = False
+    if any(k in full_text for k in ["fresher", "freshers", "0-1 year", "0-2 year", "0 to 1", "0 to 2", "trainee", "intern"]):
+        is_fresher = True
+
+    # Auto-detect Category
+    category = "quality-assurance-jobs"
+    if "fresher" in full_text or "intern" in full_text:
+        category = "freshers-jobs"
+    elif "production" in full_text or "manufacturing" in full_text:
+        category = "production-jobs"
+    elif "quality control" in full_text or "qc " in full_text:
+        category = "quality-control-jobs"
+    elif "research" in full_text or "r&d" in full_text or "formulation" in full_text or "dmpk" in full_text or "chemistry" in full_text:
+        category = "research-and-development-jobs"
+    elif "pharmacovigilance" in full_text or "pv " in full_text or "safety" in full_text:
+        category = "pharmacovigilance-jobs"
+    elif "regulatory" in full_text or "ra " in full_text:
+        category = "regulatory-affairs-jobs"
+    elif "clinical" in full_text or "tmf" in full_text or "cra" in full_text:
+        category = "clinical-research-jobs"
+
     return {
         "title": page_title,
         "company": page_company,
+        "category": category,
+        "application_type": app_type,
+        "is_fresher": is_fresher,
+        "is_fresher_friendly": is_fresher,
         "description_md": markdown.strip(),
         "extra": extra,
     }
