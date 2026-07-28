@@ -56,6 +56,17 @@ BROADCAST_NOTIFICATION = {
     "timestamp": int(time.time())
 }
 
+def trigger_internal_push_broadcast(title: str, message: str, url: str = "/"):
+    global BROADCAST_NOTIFICATION
+    BROADCAST_NOTIFICATION = {
+        "id": f"notif_tg_{int(time.time())}",
+        "title": title,
+        "message": message,
+        "url": url,
+        "timestamp": int(time.time())
+    }
+
+
 @app.route("/api/push-broadcast", methods=["GET", "POST"])
 def api_push_broadcast():
     global BROADCAST_NOTIFICATION
@@ -70,6 +81,13 @@ def api_push_broadcast():
         }
         return jsonify({"status": "success", "notification": BROADCAST_NOTIFICATION})
     return jsonify(BROADCAST_NOTIFICATION)
+
+
+@app.route("/api/telegram/scrape", methods=["POST", "GET"])
+def api_telegram_scrape():
+    import telegram_scraper
+    added = telegram_scraper.scrape_telegram_channels()
+    return jsonify({"status": "success", "new_jobs_added": len(added), "slugs": added})
 
 
 @app.route("/api/app-version")

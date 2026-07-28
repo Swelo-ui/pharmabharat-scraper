@@ -45,12 +45,18 @@ _consecutive_empty = 0  # how many syncs in a row returned 0 new jobs
 def job_cycle():
     global _consecutive_empty
 
-    log.info("═══ Checking PharmaBharat + PharmaRecruiter for new jobs... ═══")
+    log.info("═══ Checking PharmaBharat + PharmaRecruiter (Web + Telegram Channels)... ═══")
     try:
-        # Scrape DONO sites ek sath — deduplication automatic hogi
+        import telegram_scraper
+        # 1. Scrape official Telegram Channels (t.me/s/Pharma_bharat & t.me/s/pharma_recruiter)
+        tg_slugs = telegram_scraper.scrape_telegram_channels()
+        if tg_slugs:
+            log.info("✓ Telegram Scraper found %s new job(s).", len(tg_slugs))
+
+        # 2. Scrape DONO websites ek sath — deduplication automatic hogi
         new_slugs = scraper.scrape_all_recent(pages=LISTING_PAGES_TO_CHECK, deep=True)
-        count = len(new_slugs)
-        log.info("✓ Found %s new job(s) across both sites.", count)
+        total_new = len(tg_slugs) + len(new_slugs)
+        log.info("✓ Found %s total new job(s) across Web & Telegram.", total_new)
         db.set_last_sync_time()
 
         sent = notifier.notify_new_jobs()

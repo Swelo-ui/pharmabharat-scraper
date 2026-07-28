@@ -250,6 +250,15 @@ def _clean_str(text: str) -> str:
     return ' '.join(t.split())
 
 
+def job_exists_by_slug(slug: str) -> bool:
+    """Returns True if a job with the given slug or pr-slug already exists in jobs.db."""
+    if not slug:
+        return False
+    with get_conn() as conn:
+        row = conn.execute("SELECT slug FROM jobs WHERE slug = ? OR slug = ?", (slug, f"pr-{slug}")).fetchone()
+        return row is not None
+
+
 def _extract_brand_tokens(title: str, company: str) -> set:
     combined = _clean_str(f"{company or ''} {title or ''}")
     stop_words = {'hiring', 'is', 'for', 'walk', 'in', 'interview', 'jobs', 'vacancies', 'openings', 'ltd', 'limited', 'inc', 'pharma', 'pharmaceuticals', 'laboratories', 'biotech', 'lifesciences', 'qa', 'qc', 'professionals', 'plant', 'role', 'roles', 'and'}
