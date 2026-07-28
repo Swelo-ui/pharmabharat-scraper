@@ -108,7 +108,7 @@ VIRTUAL_KEYWORDS = [
 
 DATE_RE = re.compile(r"\b[A-Z][a-z]+ \d{1,2},? \d{4}\b")
 EXPERIENCE_RE = re.compile(
-    r"(?i)\b(freshers?|\d+\s*[-–—]\s*\d+\+?\s*years?|\d+\+?\s*years?)\b"
+    r"(?i)\b(freshers?|fresher|\d+\s*(?:[-–—]|to)\s*\d+\+?\s*(?:years?|yrs?|\+)|\d+\+?\s*(?:years?|yrs?))\b"
 )
 # Tightened: must have digit + unit (LPA / per month / lakhs / /-) OR a number >= 4 digits
 SALARY_RE = re.compile(
@@ -125,6 +125,8 @@ LOCATION_KEYWORDS = {
     "kolkata", "vadodara", "baroda", "surat", "nagpur", "thane", "navi mumbai",
     "ankleshwar", "vapi", "baddi", "haridwar", "rishikesh", "chandigarh",
     "lucknow", "jaipur", "indore", "bhopal", "vizag", "visakhapatnam",
+    "patancheru", "sangareddy", "tarapur", "sangli", "secunderabad", "jeedimetla",
+    "gachibowli", "choutuppal", "pithampur", "daman", "silvassa", "goa", "mysore",
     "remote", "work from home", "wfh", "pan india", "across india",
     "multiple locations", "india",
 }
