@@ -72,25 +72,36 @@ def scrape_pharmarecruiter_feed():
             if not parsed:
                 continue
 
+            extra = parsed.get("extra", {})
+            real_title = parsed.get("title")
+            if not real_title or real_title.lower() in ["new job opening", "new pharmarecruiter job"]:
+                first_h = re.search(r"^#+\s*(.*?)$", parsed.get("description_md", ""), re.M)
+                if first_h:
+                    real_title = first_h.group(1).strip()
+                else:
+                    real_title = slug.replace("-", " ").title()
+
+            real_company = parsed.get("company") or scraper.extract_company_from_title(real_title) or "PharmaRecruiter"
+
             job_data = {
                 "slug": f"pr-{slug}",
                 "url": job_url,
-                "title": parsed.get("title") or "New PharmaRecruiter Job",
-                "company": parsed.get("company") or "PharmaRecruiter",
+                "title": real_title,
+                "company": real_company,
                 "category": parsed.get("category") or "quality-assurance-jobs",
-                "experience_raw": parsed.get("experience_raw"),
+                "experience_raw": extra.get("experience_raw"),
                 "is_fresher": parsed.get("is_fresher", False),
                 "is_fresher_friendly": parsed.get("is_fresher_friendly", False),
-                "salary": parsed.get("salary"),
-                "location": parsed.get("location"),
+                "salary": extra.get("salary"),
+                "location": extra.get("location"),
                 "application_type": parsed.get("application_type"),
                 "verified": parsed.get("verified", True),
                 "posted_date_raw": parsed.get("posted_date_raw"),
                 "description_md": parsed.get("description_md"),
                 "detail_scraped": True,
-                "email": parsed.get("email"),
-                "phone": parsed.get("phone"),
-                "banner_url": parsed.get("banner_url"),
+                "email": extra.get("email"),
+                "phone": extra.get("phone"),
+                "banner_url": extra.get("banner_url"),
                 "source": "pharmarecruiter",
             }
 
@@ -167,25 +178,36 @@ def scrape_telegram_channels():
                     if not parsed:
                         continue
 
+                    extra = parsed.get("extra", {})
+                    real_title = parsed.get("title")
+                    if not real_title or real_title.lower() in ["new job opening", "new pharmarecruiter job"]:
+                        first_h = re.search(r"^#+\s*(.*?)$", parsed.get("description_md", ""), re.M)
+                        if first_h:
+                            real_title = first_h.group(1).strip()
+                        else:
+                            real_title = slug.replace("-", " ").title()
+
+                    real_company = parsed.get("company") or scraper.extract_company_from_title(real_title) or ("PharmaBharat" if source == "pharmabharat" else "PharmaRecruiter")
+
                     job_data = {
                         "slug": slug if source == "pharmabharat" else f"pr-{slug}",
                         "url": job_url,
-                        "title": parsed.get("title") or "New Job Opening",
-                        "company": parsed.get("company") or ("PharmaBharat" if source == "pharmabharat" else "PharmaRecruiter"),
+                        "title": real_title,
+                        "company": real_company,
                         "category": parsed.get("category") or "quality-assurance-jobs",
-                        "experience_raw": parsed.get("experience_raw"),
+                        "experience_raw": extra.get("experience_raw"),
                         "is_fresher": parsed.get("is_fresher", False),
                         "is_fresher_friendly": parsed.get("is_fresher_friendly", False),
-                        "salary": parsed.get("salary"),
-                        "location": parsed.get("location"),
+                        "salary": extra.get("salary"),
+                        "location": extra.get("location"),
                         "application_type": parsed.get("application_type"),
                         "verified": parsed.get("verified", True),
                         "posted_date_raw": parsed.get("posted_date_raw"),
                         "description_md": parsed.get("description_md"),
                         "detail_scraped": True,
-                        "email": parsed.get("email"),
-                        "phone": parsed.get("phone"),
-                        "banner_url": parsed.get("banner_url"),
+                        "email": extra.get("email"),
+                        "phone": extra.get("phone"),
+                        "banner_url": extra.get("banner_url"),
                         "source": source,
                     }
 

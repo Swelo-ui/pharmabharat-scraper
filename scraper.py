@@ -500,7 +500,45 @@ def parse_detail_page(html):
         if m:
             extra["salary"] = m.group().strip()
 
-    return {"description_md": markdown.strip(), "extra": extra}
+    # Extract Title & Company from Detail Page HTML
+    page_title = None
+    h1_tag = soup.find("h1", class_=re.compile(r"entry-title|post-title|title", re.I)) or soup.find("h1")
+    if h1_tag:
+        page_title = h1_tag.get_text(strip=True)
+    if not page_title:
+        og_title = soup.find("meta", property="og:title") or soup.find("meta", attrs={"name": "og:title"})
+        if og_title and og_title.get("content"):
+            page_title = og_title["content"].strip()
+
+    if page_title:
+        page_title = re.sub(r"\s*[\-\|]\s*(Pharma\s*Bharat|Pharma\s*Recruiter|PharmaBharat|PharmaRecruiter).*", "", page_title, flags=re.I).strip()
+
+    page_company = extract_company_from_title(page_title) if page_title else None
+
+    return {
+        "title": page_title,
+        "company": page_company,
+        "description_md": markdown.strip(),
+        "extra": extra,
+    }
+
+
+def extract_company_from_title(title: str) -> str | None:
+    """Extract real company name from a job title string."""
+    if not title:
+        return None
+    m = re.search(r"^(.*?)\s+(?:Hiring|is Hiring|Walk-In|Walk In|Recruitment|Drive|Invites|Opening|Careers|Jobs)\b", title, re.I)
+    if m:
+        cand = m.group(1).strip()
+        if len(cand) >= 2 and cand.lower() not in ["new", "pharma", "urgent", "latest", "walk-in", "walk in"]:
+            return cand
+    m2 = re.search(r"\b(?:at|in|by)\s+([A-Z0-9\.\s&]{2,30}?)(?=\s+[\-|–|—]|\s+Jobs|\s+in\s+[A-Z]|\Z)", title, re.I)
+    if m2:
+        return m2.group(1).strip()
+    parts = title.split()
+    if len(parts) >= 2:
+        return f"{parts[0]} {parts[1]}"
+    return parts[0] if parts else None
 
 
 # Track categories that 404'd in the current run — skip retrying them
