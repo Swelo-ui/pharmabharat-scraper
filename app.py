@@ -85,9 +85,12 @@ def api_push_broadcast():
 
 @app.route("/api/telegram/scrape", methods=["POST", "GET"])
 def api_telegram_scrape():
-    import telegram_scraper
-    added = telegram_scraper.scrape_telegram_channels()
-    return jsonify({"status": "success", "new_jobs_added": len(added), "slugs": added})
+    try:
+        import telegram_scraper
+        added = telegram_scraper.scrape_telegram_channels()
+        return jsonify({"status": "success", "new_jobs_added": len(added), "slugs": added})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 200
 
 
 @app.route("/api/app-version")
