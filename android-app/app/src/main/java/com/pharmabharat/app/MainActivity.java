@@ -93,8 +93,11 @@ public class MainActivity extends Activity {
                         r.close();
 
                         org.json.JSONObject bcJson = new org.json.JSONObject(sbBc.toString());
+                        if (bcJson.has("notification") && !bcJson.isNull("notification")) {
+                            bcJson = bcJson.getJSONObject("notification");
+                        }
                         final String bcId = bcJson.optString("id", "");
-                        final String bcTitle = bcJson.optString("title", "Pharmly Notification");
+                        final String bcTitle = bcJson.optString("title", "");
                         final String bcMsg = bcJson.optString("message", "");
 
                         SharedPreferences prefs = getSharedPreferences("PharmlyPrefs", Context.MODE_PRIVATE);

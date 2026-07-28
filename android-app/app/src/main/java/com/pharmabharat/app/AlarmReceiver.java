@@ -143,8 +143,11 @@ public class AlarmReceiver extends BroadcastReceiver {
                             r.close();
 
                             JSONObject bcJson = new JSONObject(sbBc.toString());
+                            if (bcJson.has("notification") && !bcJson.isNull("notification")) {
+                                bcJson = bcJson.getJSONObject("notification");
+                            }
                             String bcId = bcJson.optString("id", "");
-                            String bcTitle = bcJson.optString("title", "Pharmly Notification");
+                            String bcTitle = bcJson.optString("title", "");
                             String bcMsg = bcJson.optString("message", "");
 
                             SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);

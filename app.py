@@ -48,18 +48,12 @@ def _invalidate_stats_cache():
     _stats_cache["expires_at"] = 0
 
 
-BROADCAST_NOTIFICATION = {
-    "id": f"notif_doze_bypass_{int(time.time())}",
-    "title": "Pharmly Instant Alert",
-    "message": "Hi Freshers, it's Himanshu! Testing 2-min Doze-Bypass Closed App Notification 🚀",
-    "url": "/?fresher_only=true",
-    "timestamp": int(time.time())
-}
+BROADCAST_NOTIFICATION = None
 
 def trigger_internal_push_broadcast(title: str, message: str, url: str = "/"):
     global BROADCAST_NOTIFICATION
     BROADCAST_NOTIFICATION = {
-        "id": f"notif_tg_{int(time.time())}",
+        "id": f"notif_job_{int(time.time())}",
         "title": title,
         "message": message,
         "url": url,
@@ -80,7 +74,12 @@ def api_push_broadcast():
             "timestamp": int(time.time())
         }
         return jsonify({"status": "success", "notification": BROADCAST_NOTIFICATION})
-    return jsonify(BROADCAST_NOTIFICATION)
+
+    # Return broadcast only if set and less than 1 hour old
+    if BROADCAST_NOTIFICATION and (int(time.time()) - BROADCAST_NOTIFICATION.get("timestamp", 0)) < 3600:
+        return jsonify({"status": "success", "notification": BROADCAST_NOTIFICATION})
+
+    return jsonify({"status": "idle", "notification": None})
 
 
 @app.route("/api/telegram/scrape", methods=["POST", "GET"])
