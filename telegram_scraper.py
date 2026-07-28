@@ -17,7 +17,6 @@ import logging
 from bs4 import BeautifulSoup
 import db
 import scraper
-from app import trigger_internal_push_broadcast
 
 log = logging.getLogger("telegram_scraper")
 
@@ -119,9 +118,13 @@ def scrape_telegram_channels():
                         log.info("Telegram SUCCESS: Added & Deduplicated Job '%s' (%s)", job_data["title"], job_data["slug"])
 
                         # Trigger instant push notification broadcast to Android app users
-                        notif_title = f"📢 {job_data['company']} - {job_data['title']}"
-                        notif_msg = f"{job_data.get('location', '')} | {job_data.get('experience_raw', '')}".strip(" |")
-                        trigger_internal_push_broadcast(notif_title, notif_msg, job_url)
+                        try:
+                            import app
+                            notif_title = f"📢 {job_data['company']} - {job_data['title']}"
+                            notif_msg = f"{job_data.get('location', '')} | {job_data.get('experience_raw', '')}".strip(" |")
+                            app.trigger_internal_push_broadcast(notif_title, notif_msg, job_url)
+                        except Exception:
+                            pass
 
                     time.sleep(1.0)  # Gentle delay between page scrapes
 
