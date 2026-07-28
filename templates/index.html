@@ -2273,7 +2273,9 @@ function fetchStats() {
       const syncTs = data.last_sync_at || data.last_updated;
       document.getElementById("stat-last-updated").textContent = timeAgo(syncTs);
     })
-    .catch(() => {});
+    .catch(() => {
+      setTimeout(fetchStats, 2500);
+    });
 }
 
 // Category Lucide Icon Mapper
@@ -2641,16 +2643,36 @@ function fetchJobs() {
   });
 
   fetch(`/api/jobs?${params.toString()}`)
-    .then(r => r.json())
-    .then(renderJobs)
-    .catch(() => {
-      document.getElementById("job-feed").innerHTML = `
-        <div class="empty-state">
-          <div class="empty-icon"><i data-lucide="alert-triangle" style="width:48px;height:48px;color:red;"></i></div>
-          <div class="empty-title">Connection Error</div>
-          <div class="empty-desc">Could not connect to backend server. Make sure app.py is running.</div>
-        </div>`;
+    .then(r => {
+      if (!r.ok) throw new Error("Server error");
+      return r.json();
+    })
+    .then(data => {
+      renderJobs(data);
       if (window.lucide) lucide.createIcons();
+    })
+    .catch(() => {
+      // Auto-retry once after 2.5 seconds if server was restarting/deploying
+      setTimeout(() => {
+        fetch(`/api/jobs?${params.toString()}`)
+          .then(r => r.json())
+          .then(data => {
+            renderJobs(data);
+            if (window.lucide) lucide.createIcons();
+          })
+          .catch(() => {
+            document.getElementById("job-feed").innerHTML = `
+              <div class="empty-state">
+                <div class="empty-icon"><i data-lucide="wifi-off" style="width:48px;height:48px;color:var(--primary);"></i></div>
+                <div class="empty-title">Reconnecting to Server...</div>
+                <div class="empty-desc">Server is updating. Tap below to reload feed.</div>
+                <button class="btn-action" onclick="fetchJobs(); fetchStats();" style="margin-top:12px; background:var(--primary); color:#fff; border-radius:10px; padding:10px 18px;">
+                  <i data-lucide="rotate-ccw" style="width:14px;height:14px;"></i> Reload Feed
+                </button>
+              </div>`;
+            if (window.lucide) lucide.createIcons();
+          });
+      }, 2500);
     });
 }
 
