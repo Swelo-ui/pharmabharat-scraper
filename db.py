@@ -575,15 +575,16 @@ def update_detail(slug: str, description_md: str, extra: dict):
             conn.execute("UPDATE jobs SET banner_url = ? WHERE slug = ?", (b_url, slug))
 
 
-def purge_expired(days: int = 30):
+def purge_expired(days: int = 180):
     """
     Mark jobs older than `days` as inactive (is_active=0).
     Does NOT delete — preserves history. Returns count of marked jobs.
+    Never purges 2026 jobs or jobs with missing timestamps.
     """
     cutoff = int(time.time()) - (days * 86400)
     with get_conn() as conn:
         result = conn.execute(
-            "UPDATE jobs SET is_active = 0 WHERE first_seen_at < ? AND is_active = 1",
+            "UPDATE jobs SET is_active = 0 WHERE first_seen_at IS NOT NULL AND first_seen_at > 0 AND first_seen_at < ? AND (posted_date_raw NOT LIKE '%2026%' OR posted_date_raw IS NULL) AND is_active = 1",
             (cutoff,)
         )
         count = result.rowcount
