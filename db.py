@@ -373,7 +373,21 @@ def seed_from_json():
                         :slug, :url, :title, :company, :category, :experience_raw, :is_fresher, :is_fresher_friendly,
                         :salary, :location, :application_type, :verified, :posted_date_raw, :posted_timestamp,
                         :description_md, :detail_scraped, :first_seen_at, :scraped_at, :notified, :email, :phone, :banner_url, :source, 1
-                    ) ON CONFLICT(slug) DO UPDATE SET is_active = 1
+                    ) ON CONFLICT(slug) DO UPDATE SET
+                        title = excluded.title,
+                        company = excluded.company,
+                        category = excluded.category,
+                        experience_raw = excluded.experience_raw,
+                        salary = excluded.salary,
+                        location = excluded.location,
+                        application_type = excluded.application_type,
+                        posted_date_raw = excluded.posted_date_raw,
+                        posted_timestamp = excluded.posted_timestamp,
+                        description_md = excluded.description_md,
+                        email = excluded.email,
+                        phone = excluded.phone,
+                        banner_url = excluded.banner_url,
+                        is_active = 1
                 """, {
                     "slug": j.get("slug"),
                     "url": j.get("url"),
