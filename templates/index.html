@@ -3484,6 +3484,21 @@ document.addEventListener("DOMContentLoaded", () => {
   fetchStats();
   loadDropdowns();
   fetchJobs();
+
+  // Self-Healing Liveness Auto-Poller: If screen displays '--' or blank feed during server restart, auto-recover!
+  let initCheckCount = 0;
+  const initPoller = setInterval(() => {
+    const totalEl = document.getElementById("stat-total");
+    const feed = document.getElementById("job-feed");
+    const isBlank = !totalEl || totalEl.textContent === "--" || totalEl.textContent === "0" || !feed || feed.children.length === 0 || feed.innerHTML.includes("Reconnecting");
+    if (isBlank && initCheckCount < 15) {
+      initCheckCount++;
+      fetchStats();
+      fetchJobs();
+    } else if (!isBlank) {
+      clearInterval(initPoller);
+    }
+  }, 2500);
 });
 </script>
 
