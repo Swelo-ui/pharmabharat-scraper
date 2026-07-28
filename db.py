@@ -302,10 +302,8 @@ def seed_from_json():
         if not seed_jobs:
             return
         with get_conn() as conn:
-            cur_count = conn.execute("SELECT COUNT(*) FROM jobs WHERE is_active = 1").fetchone()[0]
-            if cur_count < len(seed_jobs):
-                for j in seed_jobs:
-                    conn.execute("""
+            for j in seed_jobs:
+                conn.execute("""
                         INSERT INTO jobs (
                             slug, url, title, company, category, experience_raw, is_fresher, is_fresher_friendly,
                             salary, location, application_type, verified, posted_date_raw, posted_timestamp,
@@ -314,7 +312,7 @@ def seed_from_json():
                             :slug, :url, :title, :company, :category, :experience_raw, :is_fresher, :is_fresher_friendly,
                             :salary, :location, :application_type, :verified, :posted_date_raw, :posted_timestamp,
                             :description_md, :detail_scraped, :first_seen_at, :scraped_at, :notified, :email, :phone, :banner_url, :source, 1
-                        ) ON CONFLICT(slug) DO UPDATE SET is_active = 1
+                        ) ON CONFLICT(slug) DO UPDATE SET is_active = 1, title = :title, company = :company, posted_timestamp = :posted_timestamp
                     """, {
                         "slug": j.get("slug"),
                         "url": j.get("url"),
