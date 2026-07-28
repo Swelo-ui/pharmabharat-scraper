@@ -2210,6 +2210,16 @@ function sanitizeSalary(raw) {
   return s;
 }
 
+// Location sanitizer — filter out long paragraph sentences or junk text
+function sanitizeLocation(raw) {
+  if (!raw) return null;
+  const s = raw.trim();
+  if (s.length > 40 || s.includes('\n') || s.includes('.') || /is a|conducting|looking for|join|opportunity/i.test(s)) {
+    return null;
+  }
+  return s;
+}
+
 // Fetch Stats
 function fetchStats() {
   fetch("/api/stats")
@@ -2484,7 +2494,7 @@ function createJobCardInnerHtml(job) {
     </div>` : ''}
 
     <div class="job-meta-grid">
-      ${job.location ? `<span class="meta-pill"><i data-lucide="map-pin" style="width:13px;height:13px;color:var(--primary);"></i> ${job.location}</span>` : ''}
+      ${(() => { const l = sanitizeLocation(job.location); return l ? `<span class="meta-pill"><i data-lucide="map-pin" style="width:13px;height:13px;color:var(--primary);"></i> ${l}</span>` : ''; })()}
       ${job.experience_raw ? `<span class="meta-pill"><i data-lucide="briefcase" style="width:13px;height:13px;color:var(--ink-muted);"></i> <strong>${job.experience_raw}</strong></span>` : ''}
       ${(() => { const s = sanitizeSalary(job.salary); return s ? `<span class="meta-pill highlight-salary"><i data-lucide="coins" style="width:13px;height:13px;"></i> <strong>${s}</strong></span>` : ''; })()}
     </div>
@@ -2622,7 +2632,7 @@ function renderModalJobData(job) {
     { label: "Company",    icon: "building",       value: job.company },
     { label: "Experience", icon: "briefcase",      value: job.experience_raw },
     { label: "Salary",     icon: "coins",          value: sanitizeSalary(job.salary) },
-    { label: "Location",   icon: "map-pin",        value: job.location },
+    { label: "Location",   icon: "map-pin",        value: sanitizeLocation(job.location) },
     { label: "Degree Req", icon: "graduation-cap", value: degreeText },
     { label: "Category",   icon: "tag",            value: job.category ? job.category.replace(/-/g,' ').replace(/\b\w/g,c=>c.toUpperCase()) : null },
     { label: "Type",       icon: "user-check",     value: job.application_type },

@@ -215,12 +215,26 @@ def _is_likely_company(text):
 
 
 def _extract_location(lines):
-    """Try to find a location from remaining lines using city keyword matching."""
+    """Try to find a concise city/location from remaining lines using city keyword matching."""
     for line in lines:
-        lower = line.lower()
+        cleaned = line.strip()
+        lower = cleaned.lower()
+        if not cleaned or cleaned.startswith("#"):
+            continue
+        # Skip long paragraph lines, intros, or full sentences
+        if len(cleaned) > 40 or "." in cleaned or "is a" in lower or "conducting" in lower or "looking for" in lower or "join" in lower or "opportunity" in lower:
+            # Check if there's a specific city keyword in it that we can extract standalone!
+            for kw in LOCATION_KEYWORDS:
+                if kw not in ["india", "pan india", "across india", "multiple locations"]:
+                    if re.search(r'\b' + re.escape(kw) + r'\b', lower):
+                        return kw.title()
+            continue
+
         for kw in LOCATION_KEYWORDS:
-            if kw in lower:
-                return line.strip()
+            if re.search(r'\b' + re.escape(kw) + r'\b', lower):
+                if len(cleaned) <= 35:
+                    return cleaned
+                return kw.title()
     return None
 
 
