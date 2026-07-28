@@ -290,12 +290,19 @@ def init_db():
     seed_from_json()
 
 
+_last_github_sync_time = 0
+
 def sync_github_seed():
-    """If GITHUB_TOKEN environment variable is set on Render, auto-commit jobs_seed.json directly to GitHub repo."""
-    import os, json, base64, requests
+    """If GITHUB_TOKEN environment variable is set on Render, auto-commit jobs_seed.json directly to GitHub repo with [skip render] tag."""
+    global _last_github_sync_time
+    import os, json, base64, requests, time
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
     repo = os.environ.get("GITHUB_REPOSITORY") or "Swelo-ui/pharmabharat-scraper"
     if not token:
+        return
+    now = time.time()
+    # Throttle GitHub API commits to once every 5 minutes max to avoid spamming GitHub & Render
+    if now - _last_github_sync_time < 300:
         return
     try:
         seed_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jobs_seed.json")
@@ -314,14 +321,16 @@ def sync_github_seed():
 
         content_b64 = base64.b64encode(content_str.encode("utf-8")).decode("utf-8")
         payload = {
-            "message": "Auto-sync jobs_seed.json from Render scraper [bot]",
+            "message": "Auto-sync jobs_seed.json [skip ci] [skip render]",
             "content": content_b64,
             "branch": "main"
         }
         if sha:
             payload["sha"] = sha
 
-        requests.put(url, headers=headers, json=payload, timeout=15)
+        r = requests.put(url, headers=headers, json=payload, timeout=15)
+        if r.status_code in (200, 201):
+            _last_github_sync_time = now
     except Exception:
         pass
 
