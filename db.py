@@ -290,10 +290,62 @@ def init_db():
     seed_from_json()
 
 
+def sync_github_seed():
+    """If GITHUB_TOKEN environment variable is set on Render, auto-commit jobs_seed.json directly to GitHub repo."""
+    import os, json, base64, requests
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    repo = os.environ.get("GITHUB_REPOSITORY") or "Swelo-ui/pharmabharat-scraper"
+    if not token:
+        return
+    try:
+        seed_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jobs_seed.json")
+        if not os.path.exists(seed_file):
+            return
+        with open(seed_file, "r", encoding="utf-8") as f:
+            content_str = f.read()
+
+        url = f"https://api.github.com/repos/{repo}/contents/jobs_seed.json"
+        headers = {
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+        resp = requests.get(url, headers=headers, timeout=10)
+        sha = resp.json().get("sha") if resp.status_code == 200 else None
+
+        content_b64 = base64.b64encode(content_str.encode("utf-8")).decode("utf-8")
+        payload = {
+            "message": "Auto-sync jobs_seed.json from Render scraper [bot]",
+            "content": content_b64,
+            "branch": "main"
+        }
+        if sha:
+            payload["sha"] = sha
+
+        requests.put(url, headers=headers, json=payload, timeout=15)
+    except Exception:
+        pass
+
+
+def export_seed_json():
+    """Dump all active jobs into jobs_seed.json to ensure persistence across Render deployments."""
+    import os, json
+    seed_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jobs_seed.json")
+    try:
+        with get_conn() as conn:
+            rows = conn.execute("SELECT * FROM jobs WHERE is_active = 1 ORDER BY posted_timestamp DESC").fetchall()
+            jobs_data = [dict(r) for r in rows]
+            if jobs_data:
+                with open(seed_file, "w", encoding="utf-8") as f:
+                    json.dump(jobs_data, f, ensure_ascii=False, indent=2)
+        sync_github_seed()
+    except Exception:
+        pass
+
+
 def seed_from_json():
     """Ensure database is auto-seeded from jobs_seed.json on container startup if fresh or missing jobs."""
     import os, json
-    seed_file = "jobs_seed.json"
+    seed_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jobs_seed.json")
     if not os.path.exists(seed_file):
         return
     try:
@@ -302,44 +354,42 @@ def seed_from_json():
         if not seed_jobs:
             return
         with get_conn() as conn:
-            cur_count = conn.execute("SELECT COUNT(*) FROM jobs WHERE is_active = 1").fetchone()[0]
-            if cur_count < len(seed_jobs):
-                for j in seed_jobs:
-                    conn.execute("""
-                        INSERT INTO jobs (
-                            slug, url, title, company, category, experience_raw, is_fresher, is_fresher_friendly,
-                            salary, location, application_type, verified, posted_date_raw, posted_timestamp,
-                            description_md, detail_scraped, first_seen_at, scraped_at, notified, email, phone, banner_url, source, is_active
-                        ) VALUES (
-                            :slug, :url, :title, :company, :category, :experience_raw, :is_fresher, :is_fresher_friendly,
-                            :salary, :location, :application_type, :verified, :posted_date_raw, :posted_timestamp,
-                            :description_md, :detail_scraped, :first_seen_at, :scraped_at, :notified, :email, :phone, :banner_url, :source, 1
-                        ) ON CONFLICT(slug) DO UPDATE SET is_active = 1
-                    """, {
-                        "slug": j.get("slug"),
-                        "url": j.get("url"),
-                        "title": j.get("title"),
-                        "company": j.get("company"),
-                        "category": j.get("category"),
-                        "experience_raw": j.get("experience_raw"),
-                        "is_fresher": j.get("is_fresher", 0),
-                        "is_fresher_friendly": j.get("is_fresher_friendly", 0),
-                        "salary": j.get("salary"),
-                        "location": j.get("location"),
-                        "application_type": j.get("application_type"),
-                        "verified": j.get("verified", 0),
-                        "posted_date_raw": j.get("posted_date_raw"),
-                        "posted_timestamp": j.get("posted_timestamp"),
-                        "description_md": j.get("description_md"),
-                        "detail_scraped": j.get("detail_scraped", 0),
-                        "first_seen_at": j.get("first_seen_at"),
-                        "scraped_at": j.get("scraped_at"),
-                        "notified": j.get("notified", 0),
-                        "email": j.get("email"),
-                        "phone": j.get("phone"),
-                        "banner_url": j.get("banner_url"),
-                        "source": j.get("source", "pharmabharat")
-                    })
+            for j in seed_jobs:
+                conn.execute("""
+                    INSERT INTO jobs (
+                        slug, url, title, company, category, experience_raw, is_fresher, is_fresher_friendly,
+                        salary, location, application_type, verified, posted_date_raw, posted_timestamp,
+                        description_md, detail_scraped, first_seen_at, scraped_at, notified, email, phone, banner_url, source, is_active
+                    ) VALUES (
+                        :slug, :url, :title, :company, :category, :experience_raw, :is_fresher, :is_fresher_friendly,
+                        :salary, :location, :application_type, :verified, :posted_date_raw, :posted_timestamp,
+                        :description_md, :detail_scraped, :first_seen_at, :scraped_at, :notified, :email, :phone, :banner_url, :source, 1
+                    ) ON CONFLICT(slug) DO UPDATE SET is_active = 1
+                """, {
+                    "slug": j.get("slug"),
+                    "url": j.get("url"),
+                    "title": j.get("title"),
+                    "company": j.get("company"),
+                    "category": j.get("category"),
+                    "experience_raw": j.get("experience_raw"),
+                    "is_fresher": j.get("is_fresher", 0),
+                    "is_fresher_friendly": j.get("is_fresher_friendly", 0),
+                    "salary": j.get("salary"),
+                    "location": j.get("location"),
+                    "application_type": j.get("application_type"),
+                    "verified": j.get("verified", 0),
+                    "posted_date_raw": j.get("posted_date_raw"),
+                    "posted_timestamp": j.get("posted_timestamp"),
+                    "description_md": j.get("description_md"),
+                    "detail_scraped": j.get("detail_scraped", 0),
+                    "first_seen_at": j.get("first_seen_at"),
+                    "scraped_at": j.get("scraped_at"),
+                    "notified": j.get("notified", 0),
+                    "email": j.get("email"),
+                    "phone": j.get("phone"),
+                    "banner_url": j.get("banner_url"),
+                    "source": j.get("source", "pharmabharat")
+                })
     except Exception:
         pass
 
@@ -376,10 +426,10 @@ def _is_duplicate_job(conn, job: dict) -> bool:
     3. Direct Email / Phone Match
     4. Strict Multi-Field Overlap (Brand Match + Role Match + Location Match)
     """
-    slug = job.get("slug", "")
-    title = job.get("title", "")
-    company = job.get("company", "")
-    location = job.get("location", "")
+    slug = job.get("slug") or ""
+    title = job.get("title") or ""
+    company = job.get("company") or ""
+    location = job.get("location") or ""
     banner_url = job.get("banner_url")
     email = job.get("email")
     phone = job.get("phone")
@@ -505,9 +555,9 @@ def upsert_job(job: dict) -> bool:
             return False
 
         posted_ts = parse_posted_timestamp(job.get("posted_date_raw")) or int(time.time())
-        conn.execute(
+        res = conn.execute(
             """
-            INSERT INTO jobs (
+            INSERT OR IGNORE INTO jobs (
                 slug, url, title, company, category, experience_raw,
                 is_fresher, is_fresher_friendly, salary, location,
                 application_type, verified, posted_date_raw, posted_timestamp,
@@ -534,15 +584,16 @@ def upsert_job(job: dict) -> bool:
                 int(job.get("detail_scraped", False)),
                 int(time.time()),
                 int(time.time()),
-                0,
-                1,  # is_active = True by default
                 job.get("email"),
                 job.get("phone"),
                 job.get("banner_url"),
                 job.get("source", "pharmabharat"),
             ),
         )
-        return True
+        is_new_insert = (res.rowcount > 0)
+    if is_new_insert:
+        export_seed_json()
+    return is_new_insert
 
 
 def update_detail(slug: str, description_md: str, extra: dict):
@@ -573,22 +624,14 @@ def update_detail(slug: str, description_md: str, extra: dict):
         )
         if b_url and (any(ext in b_url.lower() for ext in [".jpg", ".jpeg", ".png", ".webp", ".gif"]) or "/wp-content/uploads/" in b_url):
             conn.execute("UPDATE jobs SET banner_url = ? WHERE slug = ?", (b_url, slug))
+    export_seed_json()
 
 
 def purge_expired(days: int = 180):
     """
-    Mark jobs older than `days` as inactive (is_active=0).
-    Does NOT delete — preserves history. Returns count of marked jobs.
-    Never purges 2026 jobs or jobs with missing timestamps.
+    Unlimited Jobs Storage: Never deactivate or purge jobs from database.
     """
-    cutoff = int(time.time()) - (days * 86400)
-    with get_conn() as conn:
-        result = conn.execute(
-            "UPDATE jobs SET is_active = 0 WHERE first_seen_at IS NOT NULL AND first_seen_at > 0 AND first_seen_at < ? AND (posted_date_raw NOT LIKE '%2026%' OR posted_date_raw IS NULL) AND is_active = 1",
-            (cutoff,)
-        )
-        count = result.rowcount
-    return count
+    return 0
 
 
 def get_unnotified():
@@ -673,38 +716,64 @@ MONTHS_MAP = {
 }
 
 def detect_is_expired(job: dict) -> bool:
-    """Detect if walk-in event date or application deadline has passed relative to today."""
+    """
+    Detect if walk-in event date or application deadline has passed relative to today.
+    Returns True ONLY IF an explicit event/walk-in date or deadline is found AND all such dates are strictly in the past.
+    Returns False if any event date is today/future or if no explicit event date is specified.
+    """
     try:
         today = datetime.now().date()
         title = (job.get("title") or "").lower()
         desc = (job.get("description_md") or "").lower()
-        text = f"{title} {desc}"
 
-        # 1. Match numeric date ranges like '25-07-2026 to 27-07-2026'
+        # Ignore lines that are explicitly post/publish creation dates
+        full_text = f"{title}\n{desc}"
+        filtered_lines = []
+        for line in full_text.splitlines():
+            if re.search(r'^\s*(?:posted|published|post)\s*(?:date)?\s*[:\-]', line, re.I):
+                continue
+            filtered_lines.append(line)
+        text = "\n".join(filtered_lines)
+
+        event_dates = []
+
+        # 1. Match numeric date ranges like '25-07-2026 to 27-07-2026' or '25/07/2026 - 27/07/2026'
         for m in re.finditer(r'(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})\s*(?:to|\-)\s*(\d{1,2})[\/\-\.](\d{4})', text):
             d, mth, y = int(m.group(4)), int(m.group(5)), int(m.group(6))
-            if datetime(y, mth, d).date() < today:
-                return True
+            try:
+                event_dates.append(datetime(y, mth, d).date())
+            except Exception:
+                pass
 
-        # 2. Match single numeric dates near walk-in / interview keywords: '25-07-2026'
-        for m in re.finditer(r'(?:walk[\-\s]?in|interview|drive|date|deadline|last date).*?(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})', text):
+        # 2. Match single numeric dates near walk-in / interview / drive / deadline / event date keywords
+        for m in re.finditer(r'(?:walk[\-\s]?in|interview|drive|deadline|last date|event date|date\s*[:\-]).*?(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})', text):
             d, mth, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
-            if datetime(y, mth, d).date() < today:
-                return True
+            try:
+                event_dates.append(datetime(y, mth, d).date())
+            except Exception:
+                pass
 
-        # 3. Match word dates near walk-in / interview keywords: '25th July 2026', '26th & 27th July 2026'
-        for m in re.finditer(r'(?:walk[\-\s]?in|interview|drive|date|deadline|last date).*?(\d{1,2})(?:st|nd|rd|th)?\s+(?:&|and|\-)?\s*(?:(\d{1,2})(?:st|nd|rd|th)?\s+)?([a-z]+)\s+(\d{4})', text):
+        # 3. Match word dates near walk-in / interview / drive / deadline / event date / on keywords
+        for m in re.finditer(r'(?:walk[\-\s]?in|interview|drive|deadline|last date|event date|date\s*[:\-]|on\s+).*?(\d{1,2})(?:st|nd|rd|th)?\s+(?:&|and|\-)?\s*(?:(\d{1,2})(?:st|nd|rd|th)?\s+)?([a-z]+)\s+(\d{4})', text):
             d1 = int(m.group(1))
             d2 = int(m.group(2)) if m.group(2) else d1
             last_day = max(d1, d2)
             mth_str = m.group(3).lower()
             y = int(m.group(4))
-            if mth_str in MONTHS_MAP and datetime(y, MONTHS_MAP[mth_str], last_day).date() < today:
-                return True
-    except Exception:
-        pass
+            if mth_str in MONTHS_MAP:
+                try:
+                    event_dates.append(datetime(y, MONTHS_MAP[mth_str], last_day).date())
+                except Exception:
+                    pass
 
-    return False
+        if not event_dates:
+            return False
+
+        latest_event = max(event_dates)
+        return latest_event < today
+
+    except Exception:
+        return False
 
 
 def detect_degrees(title: str | None, desc: str | None, category: str | None) -> list:

@@ -322,6 +322,16 @@ def _run_scrape_bg(pages):
         last_scrape_status["total_targets"] = total
 
         new_slugs = scraper.scrape_all_recent(pages=pages, deep=True, progress_cb=_progress_cb)
+
+        # Also run Telegram channels (@Pharma_bharat & @pharma_recruiter) & WhatsApp RSS feed
+        try:
+            import telegram_scraper
+            tg_slugs = telegram_scraper.scrape_telegram_channels()
+            if tg_slugs:
+                new_slugs.extend(tg_slugs)
+        except Exception as e:
+            app.logger.warning(f"Telegram/WhatsApp feed scrape error: {e}")
+
         last_scrape_status["new_jobs"] = len(new_slugs)
 
         # Invalidate stats cache after successful scrape
@@ -335,6 +345,17 @@ def _run_scrape_bg(pages):
         else:
             _adaptive_pages = 1   # normal
 
+        # Trigger instant push notification for brand new daily jobs
+        if len(new_slugs) > 0:
+            try:
+                first_job = db.get_job_by_slug(new_slugs[0])
+                t_str = first_job.get("title") if first_job else "New Pharma Job Alert!"
+                c_str = first_job.get("company") if first_job else ""
+                n_msg = f"{c_str} - {len(new_slugs)} new job(s) posted!" if c_str else f"{len(new_slugs)} new pharma job(s) posted!"
+                trigger_internal_push_broadcast(t_str, n_msg, f"/api/job/{new_slugs[0]}")
+            except Exception:
+                pass
+
     except Exception as e:
         last_scrape_status["error"] = str(e)
         last_scrape_status["new_jobs"] = 0
@@ -343,6 +364,7 @@ def _run_scrape_bg(pages):
         last_scrape_status["running"] = False
         last_scrape_status["completed_at"] = int(time.time())
         db.set_last_sync_time(last_scrape_status["completed_at"])
+        db.export_seed_json()
 
         # Record in history
         scrape_history.appendleft({

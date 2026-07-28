@@ -143,54 +143,24 @@ NOISE_WORDS = {"apply now", "ad", "advertisement"}
 
 def is_date_expired(date_str, text_content=None, is_walkin=False):
     """
-    Smart Event Date Expiration Checker:
-    1. Only checks walk-in event dates if explicitly tagged as walk-in / interview drive.
-    2. Does NOT expire general jobs based on random historical dates mentioned in description text.
+    Smart Event Date Expiration Checker delegating to db.detect_is_expired.
     """
-    today = datetime.now().date()
+    job_dummy = {
+        "posted_date_raw": date_str,
+        "description_md": text_content
+    }
+    return db.detect_is_expired(job_dummy)
 
-    # Only check walk-in interview dates if it's explicitly a walk-in drive
-    if is_walkin and text_content:
-        # Match walk-in date ranges like '28-07-2026 to 31-07-2026'
-        range_match = re.search(r'(?:walk[\-\s]?in|interview|drive).*?(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})\s*(?:to|\-)\s*(\d{1,2})[\/\-\.](\d{4})', text_content, re.IGNORECASE)
-        if range_match:
-            try:
-                d, m, y = int(range_match.group(4)), int(range_match.group(5)), int(range_match.group(6))
-                end_date = datetime(y, m, d).date()
-                if end_date < today:
-                    return True
-                else:
-                    return False
-            except Exception:
-                pass
 
-        # Match single walk-in date near walk-in keywords — only expire if older than 14 days
-        single_walkin = re.search(r'(?:walk[\-\s]?in|interview|drive)\s*(?:on|date|\]|:)\s*(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})', text_content, re.IGNORECASE)
-        if single_walkin:
-            try:
-                d, m, y = int(single_walkin.group(1)), int(single_walkin.group(2)), int(single_walkin.group(3))
-                event_date = datetime(y, m, d).date()
-                if (today - event_date).days > 14:
-                    return True
-                else:
-                    return False
-            except Exception:
-                pass
-
-    # Never expire jobs from current year 2026!
-    if (date_str and "2026" in date_str) or (text_content and "2026" in text_content):
+def is_older_than_current_year(date_str: str | None) -> bool:
+    """Skip jobs from previous years (2025 and older) so only 2026 current-year jobs are scraped."""
+    if not date_str:
         return False
-
-    # Check posted date age (general jobs older than 180 days are expired)
-    if date_str:
-        try:
-            clean_str = date_str.replace(",", "").strip()
-            p_dt = datetime.strptime(clean_str, "%B %d %Y").date()
-            if (today - p_dt).days > 180:
-                return True
-        except Exception:
-            pass
-
+    m = re.search(r'\b(20\d{2})\b', str(date_str))
+    if m:
+        yr = int(m.group(1))
+        if yr < 2026:
+            return True
     return False
 
 
@@ -343,10 +313,11 @@ def parse_listing_page(html, category=None):
                 continue
             remaining.append(line)
 
-        # Skip expired jobs (walk-in interview event date passed or posted > 30 days ago)
         is_walkin = bool(app_type and "walk" in app_type.lower())
-        if is_date_expired(date_match, text_content=container_text, is_walkin=is_walkin):
-            log.info("Skipping expired job (%s): %s", date_match, title or href)
+
+        # Skip pre-2026 old jobs
+        if date_match and is_older_than_current_year(date_match):
+            log.info("Skipping old pre-2026 job (%s): %s", date_match, title or href)
             continue
 
         # Company: first remaining line that passes company heuristic
@@ -785,11 +756,11 @@ def parse_pr_listing_page(html, source="pharmarecruiter"):
                 location_found = kw.title()
                 break
 
-        # Skip expired jobs
-        # Note: date_raw is the POST published date, not the walk-in event date.
-        # Use 30-day rule for all PR jobs to avoid skipping recently-posted walk-in listings.
-        if is_date_expired(date_raw.replace(",", "") if date_raw else None, is_walkin=False):
-            log.info("PR: Skipping expired job (%s): %s", date_raw, title)
+
+
+        # Skip pre-2026 old jobs
+        if date_raw and is_older_than_current_year(date_raw):
+            log.info("PR: Skipping old pre-2026 job (%s): %s", date_raw, title)
             continue
 
         slug = _slug_from_url(href)
