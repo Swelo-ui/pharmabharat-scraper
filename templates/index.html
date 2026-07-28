@@ -2680,8 +2680,17 @@ function renderModalJobData(job) {
     });
   } else {
     const siteName = job.source === 'pharmarecruiter' ? 'PharmaRecruiter.in' : 'PharmaBharat';
-    descEl.innerHTML = bannerHtml +
-      `<p style="color:var(--ink-muted);">Full description available on ${siteName}. Click <strong>Apply Now</strong> below to view original post.</p>`;
+    descEl.innerHTML = bannerHtml + `
+      <div style="padding: 24px 16px; text-align: center; color: var(--ink-muted);">
+        <div style="font-weight:600; font-size: 0.95rem; color: var(--teal-primary); margin-bottom: 8px;">
+          <i data-lucide="loader-2" style="width:18px;height:18px;animation:spin 1s linear infinite;vertical-align:middle;margin-right:6px;"></i>
+          Fetching Official Full Details...
+        </div>
+        <p style="font-size:0.82rem; margin-top:4px;">Connecting to ${siteName} to load complete job description & flyer...</p>
+        <a href="${job.url}" target="_blank" class="btn-primary" style="display:inline-flex; align-items:center; gap:6px; margin-top:12px; font-size:0.85rem; padding:8px 16px; text-decoration:none; border-radius: 8px;">
+          <i data-lucide="external-link" style="width:14px;height:14px;"></i> Open Original Post
+        </a>
+      </div>`;
   }
 
   if (window.lucide) lucide.createIcons();
