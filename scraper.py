@@ -165,7 +165,7 @@ def is_date_expired(date_str, text_content=None, is_walkin=False):
                 pass
 
         # Match single walk-in date near walk-in keywords
-        single_walkin = re.search(r'(?:walk[\-\s]?in|interview|drive)\s*(?:on|date|:][\s\w]*?(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})', text_content, re.IGNORECASE)
+        single_walkin = re.search(r'(?:walk[\-\s]?in|interview|drive)\s*(?:on|date|\]|:)\s*(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})', text_content, re.IGNORECASE)
         if single_walkin:
             try:
                 d, m, y = int(single_walkin.group(1)), int(single_walkin.group(2)), int(single_walkin.group(3))
