@@ -108,7 +108,8 @@ VIRTUAL_KEYWORDS = [
 
 DATE_RE = re.compile(r"\b[A-Z][a-z]+ \d{1,2},? \d{4}\b")
 EXPERIENCE_RE = re.compile(
-    r"(?i)\b(freshers?|fresher|\d+\s*(?:[-–—]|to)\s*\d+\+?\s*(?:years?|yrs?|\+)|\d+\+?\s*(?:years?|yrs?))\b"
+    r"\b(freshers?|fresher|\d+\s*(?:[-–—]|to)\s*\d+\+?\s*(?:years?|yrs?|\+)|\d+\+?\s*(?:years?|yrs?))\b",
+    re.I
 )
 # Tightened: must have digit + unit (LPA / per month / lakhs / /-) OR a number >= 4 digits
 SALARY_RE = re.compile(
@@ -133,7 +134,7 @@ LOCATION_KEYWORDS = {
 
 # Patterns that clearly indicate NOT a company name
 _NOT_COMPANY_RE = re.compile(
-    r"(?i)^(freshers?|\d[\d\s\-–—+]*years?|apply|walk[\-\s]?in|online|email|"
+    r"^(freshers?|\d[\d\s\-–—+]*years?|apply|walk[\-\s]?in|online|email|"
     r"verified|immediate|urgent|[A-Z][a-z]+ \d{1,2},? \d{4}|₹|Rs|INR)",
     re.I
 )
@@ -359,7 +360,7 @@ def parse_listing_page(html, category=None):
         location_found = _sanitize(location_found)
         experience = _sanitize(experience)
 
-        is_fresher = bool(re.search(r"(?i)\bfreshers?\b", experience or ""))
+        is_fresher = bool(re.search(r"\bfreshers?\b", experience or "", flags=re.I))
         is_fresher_friendly = is_fresher or bool(re.match(r"^\s*0\s*[-–—]", experience or ""))
 
         slug = _slug_from_url(href)
@@ -476,10 +477,10 @@ def parse_detail_page(html):
                         tag["href"] = f"mailto:{decoded}"
 
     markdown = md(str(container), heading_style="ATX")
-    markdown = re.sub(r"^(?i)\s*Share\s+With\s+Your\s+Friends\s*\n*", "", markdown.strip())
+    markdown = re.sub(r"^\s*Share\s+With\s+Your\s+Friends\s*\n*", "", markdown.strip(), flags=re.I)
     # Clean TOC table of contents markdown block if present
-    markdown = re.sub(r"(?i)\n*#*\s*Contents\s*\n+(\s*[\*\-]\s*\[?\d+\.?\d*.*?\]?\(#.*?\)\s*\n?)+", "\n\n", markdown)
-    markdown = re.sub(r"(?i)\n*#*\s*Contents\s*\n+(\s*\d+\.\s*\[?.*?\]?\(#.*?\)\s*\n?)+", "\n\n", markdown)
+    markdown = re.sub(r"\n*#*\s*Contents\s*\n+(\s*[\*\-]\s*\[?\d+\.?\d*.*?\]?\(#.*?\)\s*\n?)+", "\n\n", markdown, flags=re.I)
+    markdown = re.sub(r"\n*#*\s*Contents\s*\n+(\s*\d+\.\s*\[?.*?\]?\(#.*?\)\s*\n?)+", "\n\n", markdown, flags=re.I)
 
     # trailing share/ad/related-jobs section hata do agar mila
     cut_markers = ["Share This Job", "RECENT JOBS", "Advertisement", "Related Jobs"]
@@ -858,7 +859,7 @@ def parse_pr_listing_page(html, source="pharmarecruiter"):
             app_type = "Walk In Interview"
 
         # Fresher detection from title
-        is_fresher = bool(re.search(r"(?i)\bfreshers?\b", title))
+        is_fresher = bool(re.search(r"\bfreshers?\b", title, flags=re.I))
         is_fresher_friendly = is_fresher
 
         # Company heuristic from title

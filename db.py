@@ -183,7 +183,7 @@ def parse_posted_timestamp(date_raw: str | None) -> int | None:
     now = int(time.time())
 
     # "2 hours ago", "5 mins ago", "1 day ago"
-    m_ago = re.search(r"(?i)(\d+)\s*(hour|min|minute|day|week|month)s?\s*ago", s)
+    m_ago = re.search(r"(\d+)\s*(hour|min|minute|day|week|month)s?\s*ago", s, flags=re.I)
     if m_ago:
         val = int(m_ago.group(1))
         unit = m_ago.group(2).lower()
