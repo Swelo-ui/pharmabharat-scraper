@@ -143,8 +143,7 @@ KNOWN_BRANDS = [
     "Jubilant Biosys", "Altrakem", "Salus Pharmaceuticals", "Immacule Lifesciences", "Baroque Pharmaceuticals",
     "Zenotech Laboratories", "Clarivate", "Ciron Drugs", "Stellar Formulations", "Piramal Pharma", "Marisym Biologicals",
     "Harris", "Bristol Myers Squibb", "Script Assist", "UPSC", "IIT Hyderabad", "West Coast Pharmaceutical",
-    "Milan Laboratories", "Gufic Biosciences", "Reckitt", "Heranba Group", "Dr. Reddy", "Klinera", "Mitocon Biopharma",
-    "Intas Pharmaceuticals", "Intas", "Hetero Labs", "Hetero", "Elixir Pharma", "Covalent Laboratories"
+    "Milan Laboratories", "Gufic Biosciences", "Reckitt", "Heranba Group", "Dr. Reddy", "Klinera", "Mitocon Biopharma"
 ]
 
 def extract_company_from_text(title: str, text: str = "") -> str:
@@ -303,8 +302,10 @@ def seed_from_json():
         if not seed_jobs:
             return
         with get_conn() as conn:
-            for j in seed_jobs:
-                conn.execute("""
+            cur_count = conn.execute("SELECT COUNT(*) FROM jobs WHERE is_active = 1").fetchone()[0]
+            if cur_count < len(seed_jobs):
+                for j in seed_jobs:
+                    conn.execute("""
                         INSERT INTO jobs (
                             slug, url, title, company, category, experience_raw, is_fresher, is_fresher_friendly,
                             salary, location, application_type, verified, posted_date_raw, posted_timestamp,
@@ -313,7 +314,7 @@ def seed_from_json():
                             :slug, :url, :title, :company, :category, :experience_raw, :is_fresher, :is_fresher_friendly,
                             :salary, :location, :application_type, :verified, :posted_date_raw, :posted_timestamp,
                             :description_md, :detail_scraped, :first_seen_at, :scraped_at, :notified, :email, :phone, :banner_url, :source, 1
-                        ) ON CONFLICT(slug) DO UPDATE SET is_active = 1, title = :title, company = :company, posted_timestamp = :posted_timestamp
+                        ) ON CONFLICT(slug) DO UPDATE SET is_active = 1
                     """, {
                         "slug": j.get("slug"),
                         "url": j.get("url"),
@@ -503,24 +504,7 @@ def upsert_job(job: dict) -> bool:
         if _is_duplicate_job(conn, job):
             return False
 
-        title = job.get("title")
-        company = job.get("company")
-
-        # Sanitize RSS placeholder titles like 'New PharmaRecruiter Job'
-        if not title or title.lower() in ["new pharmarecruiter job", "pharma job", "untitled position"]:
-            slug_words = [w.capitalize() for w in job.get("slug", "").replace("pr-", "").replace("-", " ").split() if w.lower() not in ["job", "jobs", "in", "for", "at", "entry", "level", "careers", "pharma"]]
-            title = " ".join(slug_words) or "Pharma Job Opening"
-
-        if not company or company.lower() in ["pharmarecruiter", "pharma company", "none", ""]:
-            company = extract_company_from_text(f"{title} {job.get('slug', '')}")
-
-        posted_ts = parse_posted_timestamp(job.get("posted_date_raw"))
-        if not posted_ts:
-            # Assign midnight UTC timestamp of current date to prevent artificial top ranking
-            today = datetime.now()
-            midnight = datetime(today.year, today.month, today.day)
-            posted_ts = int(midnight.timestamp())
-
+        posted_ts = parse_posted_timestamp(job.get("posted_date_raw")) or int(time.time())
         conn.execute(
             """
             INSERT INTO jobs (
@@ -534,8 +518,8 @@ def upsert_job(job: dict) -> bool:
             (
                 job["slug"],
                 job["url"],
-                title,
-                company,
+                job.get("title"),
+                job.get("company"),
                 job.get("category"),
                 job.get("experience_raw"),
                 int(job.get("is_fresher", False)),

@@ -742,26 +742,6 @@
   .badge-mpharm { background: rgba(124, 58, 237, 0.12); color: #7c3aed; border: 1px solid rgba(124, 58, 237, 0.3); }
   .badge-pharmd { background: rgba(37, 99, 235, 0.12); color: #2563eb; border: 1px solid rgba(37, 99, 235, 0.3); }
   .badge-dpharm { background: rgba(217, 119, 6, 0.12); color: #d97706; border: 1px solid rgba(217, 119, 6, 0.3); }
-  .badge-expired { background: rgba(239, 68, 68, 0.14) !important; color: #ef4444 !important; border: 1px solid rgba(239, 68, 68, 0.3) !important; }
-
-  .expired-alert-banner {
-    background: rgba(239, 68, 68, 0.12);
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    color: #dc2626;
-    padding: 10px 14px;
-    border-radius: 12px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .dark-mode .expired-alert-banner {
-    background: rgba(248, 113, 113, 0.18);
-    border-color: rgba(248, 113, 113, 0.4);
-    color: #f87171;
-  }
 
   /* Meta Chips Bar */
   .job-meta-grid {
@@ -1387,45 +1367,12 @@
   }
 
   .modal-footer {
-    padding: 14px 18px;
+    padding: 14px 20px;
     border-top: 1px solid var(--border);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
     background: var(--surface);
-    flex-wrap: wrap;
-  }
-
-  @media (max-width: 480px) {
-    .modal-footer {
-      padding: 12px 14px;
-      flex-direction: column;
-      align-items: stretch;
-      gap: 10px;
-    }
-    .modal-footer-left {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      width: 100%;
-    }
-    .modal-footer-actions {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      width: 100%;
-    }
-    .modal-footer-actions .btn-action {
-      flex: 1;
-      justify-content: center;
-      padding: 10px 6px;
-      font-size: 0.82rem;
-    }
-    .modal-footer-actions .btn-apply {
-      flex: 1.5;
-      white-space: nowrap;
-    }
   }
 
   /* Toast Notification */
@@ -2269,13 +2216,11 @@ function fetchStats() {
       document.getElementById("stat-total").textContent = data.total || 0;
       document.getElementById("stat-fresher").textContent = data.fresher || 0;
       document.getElementById("stat-verified").textContent = data.verified || 0;
+      // Use last_sync_at (actual sync time) - falls back to last_updated (max DB job ts)
       const syncTs = data.last_sync_at || data.last_updated;
       document.getElementById("stat-last-updated").textContent = timeAgo(syncTs);
-      try { localStorage.setItem("pb_cached_stats", JSON.stringify(data)); } catch(e) {}
     })
-    .catch(() => {
-      setTimeout(fetchStats, 2500);
-    });
+    .catch(() => {});
 }
 
 // Category Lucide Icon Mapper
@@ -2486,10 +2431,6 @@ function renderJobs(data) {
   const filterBar = document.getElementById("active-filter-bar");
   if (filterBar) filterBar.style.display = isFiltered ? "flex" : "none";
 
-  if (!isFiltered && data && data.jobs && data.jobs.length > 0) {
-    try { localStorage.setItem("pb_cached_jobs", JSON.stringify(data)); } catch(e) {}
-  }
-
   if (jobs.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
@@ -2505,37 +2446,12 @@ function renderJobs(data) {
   // Cache all loaded jobs by slug for rich sharing
   jobs.forEach(j => { if (j && j.slug) allLoadedJobs[j.slug] = j; });
 
-function isJobExpired(job) {
-  if (!job) return false;
-  const combined = ((job.title || '') + ' ' + (job.description_md || '') + ' ' + (job.application_type || '')).toLowerCase();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  if (job.application_type && (job.application_type.toLowerCase().includes("walk") || job.application_type.toLowerCase().includes("interview"))) {
-    const matches = combined.match(/\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](202\d)\b/g);
-    if (matches) {
-      for (const m of matches) {
-        const parts = m.split(/[\/\-\.]/);
-        if (parts.length === 3) {
-          const d = parseInt(parts[0]), m_idx = parseInt(parts[1]) - 1, y = parseInt(parts[2]);
-          const evtDate = new Date(y, m_idx, d);
-          if (!isNaN(evtDate.getTime()) && evtDate.getTime() < today.getTime()) {
-            return true;
-          }
-        }
-      }
-    }
-  }
-  return false;
-}
-
 function createJobCardInnerHtml(job) {
   const isSaved = state.savedSlugs.includes(job.slug);
   const hasContact = job.email || job.phone;
   const initial = getCompanyInitial(job.company);
   const avatarStyle = getAvatarStyle(job.company);
   const degrees = job.degrees || detectDegrees(job.title, job.description_md, job.category);
-  const expired = isJobExpired(job);
 
   return `
     <div class="job-card-top">
@@ -2553,12 +2469,11 @@ function createJobCardInnerHtml(job) {
           ${degrees.includes('D.Pharm') ? '<span class="badge badge-dpharm"><i data-lucide="scroll" style="width:11px;height:11px;"></i> D.PHARM</span>' : ''}
           ${job.is_fresher_friendly ? '<span class="badge badge-fresher"><i data-lucide="sparkles" style="width:11px;height:11px;"></i> FRESHER</span>' : ''}
           ${job.verified ? '<span class="badge badge-verified"><i data-lucide="shield-check" style="width:11px;height:11px;"></i> VERIFIED</span>' : ''}
-          ${expired ? '<span class="badge badge-expired"><i data-lucide="clock" style="width:11px;height:11px;"></i> DRIVE PASSED</span>' : ''}
           ${job.application_type && (job.application_type.toLowerCase().includes("virtual") || job.application_type.toLowerCase().includes("video") || job.application_type.toLowerCase().includes("telephonic") || job.application_type.toLowerCase().includes("online interview")) ? '<span class="badge badge-virtual"><i data-lucide="video" style="width:11px;height:11px;"></i> VIRTUAL INTERVIEW</span>' : ''}
-          ${job.application_type && job.application_type.toLowerCase().includes("walk") && !job.application_type.toLowerCase().includes("virtual") && !expired ? '<span class="badge badge-walkin"><i data-lucide="user-check" style="width:11px;height:11px;"></i> WALK-IN</span>' : ''}
+          ${job.application_type && job.application_type.toLowerCase().includes("walk") && !job.application_type.toLowerCase().includes("virtual") ? '<span class="badge badge-walkin"><i data-lucide="user-check" style="width:11px;height:11px;"></i> WALK-IN</span>' : ''}
         </div>
       </div>
-    </div>`;
+    </div>
 
     ${job.banner_url ? `
     <div class="card-banner-thumb" onclick="event.stopPropagation(); openJobModal('${job.slug}')">
@@ -2647,36 +2562,16 @@ function fetchJobs() {
   });
 
   fetch(`/api/jobs?${params.toString()}`)
-    .then(r => {
-      if (!r.ok) throw new Error("Server error");
-      return r.json();
-    })
-    .then(data => {
-      renderJobs(data);
-      if (window.lucide) lucide.createIcons();
-    })
+    .then(r => r.json())
+    .then(renderJobs)
     .catch(() => {
-      // Auto-retry once after 2.5 seconds if server was restarting/deploying
-      setTimeout(() => {
-        fetch(`/api/jobs?${params.toString()}`)
-          .then(r => r.json())
-          .then(data => {
-            renderJobs(data);
-            if (window.lucide) lucide.createIcons();
-          })
-          .catch(() => {
-            document.getElementById("job-feed").innerHTML = `
-              <div class="empty-state">
-                <div class="empty-icon"><i data-lucide="wifi-off" style="width:48px;height:48px;color:var(--primary);"></i></div>
-                <div class="empty-title">Reconnecting to Server...</div>
-                <div class="empty-desc">Server is updating. Tap below to reload feed.</div>
-                <button class="btn-action" onclick="fetchJobs(); fetchStats();" style="margin-top:12px; background:var(--primary); color:#fff; border-radius:10px; padding:10px 18px;">
-                  <i data-lucide="rotate-ccw" style="width:14px;height:14px;"></i> Reload Feed
-                </button>
-              </div>`;
-            if (window.lucide) lucide.createIcons();
-          });
-      }, 2500);
+      document.getElementById("job-feed").innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon"><i data-lucide="alert-triangle" style="width:48px;height:48px;color:red;"></i></div>
+          <div class="empty-title">Connection Error</div>
+          <div class="empty-desc">Could not connect to backend server. Make sure app.py is running.</div>
+        </div>`;
+      if (window.lucide) lucide.createIcons();
     });
 }
 
@@ -2738,13 +2633,7 @@ function renderModalJobData(job) {
         <div class="ov-value">${f.value}</div>
       </div>`).join("");
 
-  const expiredBannerHtml = isJobExpired(job) ? `
-    <div class="expired-alert-banner" style="grid-column: 1 / -1;">
-      <i data-lucide="alert-triangle" style="width:16px;height:16px;flex-shrink:0;"></i>
-      <span><strong>Walk-in / Event Date Passed:</strong> The scheduled drive date for this position has passed. Please verify before traveling.</span>
-    </div>` : '';
-
-  document.getElementById("overview-grid").innerHTML = expiredBannerHtml + bannerHtml + (fieldsHtml || `<div style="color:var(--ink-muted);font-size:0.85rem;grid-column:1/-1;">Details available in Full Description tab.</div>`);
+  document.getElementById("overview-grid").innerHTML = bannerHtml + (fieldsHtml || `<div style="color:var(--ink-muted);font-size:0.85rem;grid-column:1/-1;">Details available in Full Description tab.</div>`);
 
   // Contacts row
   document.getElementById("overview-contacts").innerHTML = [
@@ -3483,46 +3372,11 @@ setInterval(fetchStats, 60000);
 
 // Initialize
 document.addEventListener("DOMContentLoaded", () => {
-  // 1. 0ms Instant Cache Hydration (Zero Blank Screen Guarantee)
-  try {
-    const cachedStats = localStorage.getItem("pb_cached_stats");
-    if (cachedStats) {
-      const data = JSON.parse(cachedStats);
-      document.getElementById("stat-total").textContent = data.total || 0;
-      document.getElementById("stat-fresher").textContent = data.fresher || 0;
-      document.getElementById("stat-verified").textContent = data.verified || 0;
-      const syncTs = data.last_sync_at || data.last_updated;
-      document.getElementById("stat-last-updated").textContent = timeAgo(syncTs);
-    }
-    const cachedJobs = localStorage.getItem("pb_cached_jobs");
-    if (cachedJobs) {
-      const data = JSON.parse(cachedJobs);
-      if (data && data.jobs && data.jobs.length > 0) {
-        renderJobs(data);
-      }
-    }
-  } catch(e) {}
-
   if (window.lucide) lucide.createIcons();
   updateSavedCount();
   fetchStats();
   loadDropdowns();
   fetchJobs();
-
-  // Self-Healing Liveness Auto-Poller: If screen displays '--' or blank feed during server restart/cold-start, auto-recover!
-  let initCheckCount = 0;
-  const initPoller = setInterval(() => {
-    const totalEl = document.getElementById("stat-total");
-    const feed = document.getElementById("job-feed");
-    const isBlank = !totalEl || totalEl.textContent === "--" || totalEl.textContent === "0" || !feed || feed.children.length === 0 || feed.innerHTML.includes("Reconnecting");
-    if (isBlank && initCheckCount < 20) {
-      initCheckCount++;
-      fetchStats();
-      fetchJobs();
-    } else if (!isBlank) {
-      clearInterval(initPoller);
-    }
-  }, 2500);
 });
 </script>
 
