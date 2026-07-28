@@ -612,7 +612,11 @@ def get_job_by_slug(slug: str):
     """Fetch single job detail by slug."""
     with get_conn() as conn:
         row = conn.execute("SELECT * FROM jobs WHERE slug = ?", (slug,)).fetchone()
-        return dict(row) if row else None
+        if row:
+            d = dict(row)
+            d["is_expired"] = detect_is_expired(d)
+            return d
+    return None
 
 
 def set_last_sync_time(ts: int | None = None):
@@ -659,6 +663,48 @@ def get_stats():
             "pharmabharat_count": pb_count,
             "pharmarecruiter_count": pr_count,
         }
+
+
+MONTHS_MAP = {
+    'jan': 1, 'january': 1, 'feb': 2, 'february': 2, 'mar': 3, 'march': 3,
+    'apr': 4, 'april': 4, 'may': 5, 'june': 6, 'july': 7,
+    'aug': 8, 'august': 8, 'sep': 9, 'september': 9, 'oct': 10, 'october': 10,
+    'nov': 11, 'november': 11, 'dec': 12, 'december': 12
+}
+
+def detect_is_expired(job: dict) -> bool:
+    """Detect if walk-in event date or application deadline has passed relative to today."""
+    try:
+        today = datetime.now().date()
+        title = (job.get("title") or "").lower()
+        desc = (job.get("description_md") or "").lower()
+        text = f"{title} {desc}"
+
+        # 1. Match numeric date ranges like '25-07-2026 to 27-07-2026'
+        for m in re.finditer(r'(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})\s*(?:to|\-)\s*(\d{1,2})[\/\-\.](\d{4})', text):
+            d, mth, y = int(m.group(4)), int(m.group(5)), int(m.group(6))
+            if datetime(y, mth, d).date() < today:
+                return True
+
+        # 2. Match single numeric dates near walk-in / interview keywords: '25-07-2026'
+        for m in re.finditer(r'(?:walk[\-\s]?in|interview|drive|date|deadline|last date).*?(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})', text):
+            d, mth, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            if datetime(y, mth, d).date() < today:
+                return True
+
+        # 3. Match word dates near walk-in / interview keywords: '25th July 2026', '26th & 27th July 2026'
+        for m in re.finditer(r'(?:walk[\-\s]?in|interview|drive|date|deadline|last date).*?(\d{1,2})(?:st|nd|rd|th)?\s+(?:&|and|\-)?\s*(?:(\d{1,2})(?:st|nd|rd|th)?\s+)?([a-z]+)\s+(\d{4})', text):
+            d1 = int(m.group(1))
+            d2 = int(m.group(2)) if m.group(2) else d1
+            last_day = max(d1, d2)
+            mth_str = m.group(3).lower()
+            y = int(m.group(4))
+            if mth_str in MONTHS_MAP and datetime(y, MONTHS_MAP[mth_str], last_day).date() < today:
+                return True
+    except Exception:
+        pass
+
+    return False
 
 
 def detect_degrees(title: str | None, desc: str | None, category: str | None) -> list:
@@ -737,6 +783,7 @@ def query_jobs(category=None, fresher_only=False, verified_only=False,
         for r in rows:
             d = dict(r)
             d["degrees"] = detect_degrees(d.get("title"), d.get("description_md"), d.get("category"))
+            d["is_expired"] = detect_is_expired(d)
             first_seen = d.get("first_seen_at") or 0
             # If discovered within last 24h and has a detailed posted_date_raw
             if (now_ts - first_seen) < 86400 and d.get("posted_date_raw") and d.get("detail_scraped"):

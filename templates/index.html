@@ -742,6 +742,8 @@
   .badge-mpharm { background: rgba(124, 58, 237, 0.12); color: #7c3aed; border: 1px solid rgba(124, 58, 237, 0.3); }
   .badge-pharmd { background: rgba(37, 99, 235, 0.12); color: #2563eb; border: 1px solid rgba(37, 99, 235, 0.3); }
   .badge-dpharm { background: rgba(217, 119, 6, 0.12); color: #d97706; border: 1px solid rgba(217, 119, 6, 0.3); }
+  .badge-expired { background: #FEF2F2; color: #DC2626; border: 1px solid #FCA5A5; }
+  [data-theme="dark"] .badge-expired { background: rgba(220, 38, 38, 0.2); color: #FCA5A5; border-color: rgba(239, 68, 68, 0.4); }
 
   /* Meta Chips Bar */
   .job-meta-grid {
@@ -1592,9 +1594,9 @@
       </div>
     </div>
 
-    <div class="modal-footer">
-      <div id="modal-date" style="font-size: 0.75rem; color: var(--ink-soft); font-family: 'JetBrains Mono', monospace;">Posted Recently</div>
-      <div style="display: flex; gap: 6px;">
+    <div class="modal-footer" style="padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+      <div id="modal-date" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 600; color: var(--ink-muted); white-space: nowrap;">Posted Recently</div>
+      <div style="display: flex; gap: 6px; flex-shrink: 0; align-items: center;">
         <button class="btn-action btn-bookmark" id="modal-save-btn">
           <i data-lucide="bookmark" style="width:14px;height:14px;"></i> Save
         </button>
@@ -2467,6 +2469,7 @@ function createJobCardInnerHtml(job) {
           ${degrees.includes('M.Pharm') ? '<span class="badge badge-mpharm"><i data-lucide="award" style="width:11px;height:11px;"></i> M.PHARM</span>' : ''}
           ${degrees.includes('Pharm.D') ? '<span class="badge badge-pharmd"><i data-lucide="book-open" style="width:11px;height:11px;"></i> PHARM.D</span>' : ''}
           ${degrees.includes('D.Pharm') ? '<span class="badge badge-dpharm"><i data-lucide="scroll" style="width:11px;height:11px;"></i> D.PHARM</span>' : ''}
+          ${job.is_expired ? '<span class="badge badge-expired"><i data-lucide="clock-4" style="width:11px;height:11px;"></i> EXPIRED</span>' : ''}
           ${job.is_fresher_friendly ? '<span class="badge badge-fresher"><i data-lucide="sparkles" style="width:11px;height:11px;"></i> FRESHER</span>' : ''}
           ${job.verified ? '<span class="badge badge-verified"><i data-lucide="shield-check" style="width:11px;height:11px;"></i> VERIFIED</span>' : ''}
           ${job.application_type && (job.application_type.toLowerCase().includes("virtual") || job.application_type.toLowerCase().includes("video") || job.application_type.toLowerCase().includes("telephonic") || job.application_type.toLowerCase().includes("online interview")) ? '<span class="badge badge-virtual"><i data-lucide="video" style="width:11px;height:11px;"></i> VIRTUAL INTERVIEW</span>' : ''}
@@ -2600,7 +2603,7 @@ function renderModalJobData(job) {
   document.getElementById("modal-company").textContent = job.company || "PHARMA COMPANY";
   document.getElementById("modal-title").textContent = job.title || "Job Details";
   const formattedDateStr = formatJobDate(job);
-  document.getElementById("modal-date").innerHTML = formattedDateStr ? `Posted: ${formattedDateStr}` : "";
+  document.getElementById("modal-date").innerHTML = formattedDateStr ? `<span style="font-size:0.75rem;color:var(--ink-muted);font-weight:600;margin-right:2px;">Posted:</span> ${formattedDateStr}` : "";
   document.getElementById("modal-apply-btn").href = job.url;
 
   // ── Banner Card & Overview Tab ──
