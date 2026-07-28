@@ -504,7 +504,24 @@ def upsert_job(job: dict) -> bool:
         if _is_duplicate_job(conn, job):
             return False
 
-        posted_ts = parse_posted_timestamp(job.get("posted_date_raw")) or int(time.time())
+        title = job.get("title")
+        company = job.get("company")
+
+        # Sanitize RSS placeholder titles like 'New PharmaRecruiter Job'
+        if not title or title.lower() in ["new pharmarecruiter job", "pharma job", "untitled position"]:
+            slug_words = [w.capitalize() for w in job.get("slug", "").replace("pr-", "").replace("-", " ").split() if w.lower() not in ["job", "jobs", "in", "for", "at", "entry", "level", "careers", "pharma"]]
+            title = " ".join(slug_words) or "Pharma Job Opening"
+
+        if not company or company.lower() in ["pharmarecruiter", "pharma company", "none", ""]:
+            company = extract_company_from_text(f"{title} {job.get('slug', '')}")
+
+        posted_ts = parse_posted_timestamp(job.get("posted_date_raw"))
+        if not posted_ts:
+            # Assign midnight UTC timestamp of current date to prevent artificial top ranking
+            today = datetime.now()
+            midnight = datetime(today.year, today.month, today.day)
+            posted_ts = int(midnight.timestamp())
+
         conn.execute(
             """
             INSERT INTO jobs (
@@ -518,8 +535,8 @@ def upsert_job(job: dict) -> bool:
             (
                 job["slug"],
                 job["url"],
-                job.get("title"),
-                job.get("company"),
+                title,
+                company,
                 job.get("category"),
                 job.get("experience_raw"),
                 int(job.get("is_fresher", False)),
