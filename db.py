@@ -309,22 +309,32 @@ def _is_duplicate_job(conn, job: dict) -> bool:
             if p_row:
                 return True
 
-    # 4. High-Precision Multi-Field & Title Jaccard Similarity Match
+    # 4. Ultra-Smart Actual Role Words & Domain Footprint Verification Engine
     brands1 = _extract_brand_tokens(title, company)
     if not brands1:
         return False
 
+    core_pharma_keywords = {
+        'qc', 'qa', 'quality', 'control', 'assurance', 'production', 'manufacturing', 'injectable', 'injectables',
+        'osd', 'formulation', 'r&d', 'research', 'development', 'safety', 'reporting', 'pharmacovigilance', 'pv',
+        'coordinator', 'analyst', 'programmer', 'coder', 'coding', 'tmf', 'regulatory', 'affairs', 'microbiology',
+        'micro', 'utilities', 'engineering', 'maintenance', 'sales', 'representative', 'intern', 'apprentice',
+        'trainee', 'officer', 'executive', 'manager', 'director', 'associate', 'specialist', 'auditor', 'packaging',
+        'packing', 'warehouse', 'store', 'purchase', 'procurement', 'hr', 'human', 'resources'
+    }
     stop_words = {
         'hiring', 'is', 'for', 'walk', 'in', 'interview', 'jobs', 'vacancies', 'openings',
         'ltd', 'limited', 'inc', 'pharma', 'pharmaceuticals', 'laboratories', 'biotech',
-        'lifesciences', 'professionals', 'plant', 'role', 'roles', 'and', 'at', 'with', 'apply', 'now', '2026'
+        'lifesciences', 'professionals', 'plant', 'role', 'roles', 'and', 'at', 'with', 'apply', 'now', '2026', 'drive'
     }
-    t1_clean = _clean_str(title)
-    kw1 = set(w for w in t1_clean.split() if w not in stop_words and len(w) > 2)
+
+    t1_clean = re.sub(r'[^a-z0-9\s]', ' ', title.lower())
+    t1_words = set(t1_clean.split())
+    kw1 = set(w for w in t1_words if (w in core_pharma_keywords or (len(w) > 3 and w not in stop_words)))
     if not kw1:
         return False
 
-    l1 = _clean_str(location)
+    l1 = set(re.sub(r'[^a-z0-9\s]', ' ', (location or "").lower()).split())
     exp1_raw = _clean_str(job.get("experience_raw", ""))
     is_fresher1 = int(job.get("is_fresher", 0))
 
@@ -332,25 +342,26 @@ def _is_duplicate_job(conn, job: dict) -> bool:
     for r in rows:
         brands2 = _extract_brand_tokens(r["title"], r["company"])
         if not brands1.intersection(brands2):
-            continue
+            continue  # Different companies -> Not duplicate
 
-        t2_clean = _clean_str(r["title"])
-        kw2 = set(w for w in t2_clean.split() if w not in stop_words and len(w) > 2)
+        t2_clean = re.sub(r'[^a-z0-9\s]', ' ', (r["title"] or "").lower())
+        t2_words = set(t2_clean.split())
+        kw2 = set(w for w in t2_words if (w in core_pharma_keywords or (len(w) > 3 and w not in stop_words)))
         if not kw2:
             continue
 
-        union = kw1.union(kw2)
-        intersection = kw1.intersection(kw2)
-        jaccard = len(intersection) / float(len(union)) if union else 0.0
+        shared_role_words = kw1.intersection(kw2)
+        if not shared_role_words:
+            continue  # Zero shared core role words -> Distinct jobs
+
+        union_role_words = kw1.union(kw2)
+        role_ratio = len(shared_role_words) / float(len(union_role_words)) if union_role_words else 0.0
 
         # Location verification
-        l2 = _clean_str(r["location"])
+        l2 = set(re.sub(r'[^a-z0-9\s]', ' ', (r["location"] or "").lower()).split())
         loc_mismatch = False
-        if l1 and l2:
-            l1_words = set(l1.split())
-            l2_words = set(l2.split())
-            if not l1_words.intersection(l2_words):
-                loc_mismatch = True
+        if l1 and l2 and not (l1 & l2):
+            loc_mismatch = True
 
         # Experience Level Verification
         exp2_raw = _clean_str(r["experience_raw"] or "")
@@ -362,8 +373,8 @@ def _is_duplicate_job(conn, job: dict) -> bool:
         if loc_mismatch or exp_mismatch:
             continue
 
-        # Declare duplicate ONLY IF Title Jaccard Similarity >= 0.65
-        if jaccard >= 0.65:
+        # Declare duplicate ONLY IF actual role footprint matches >= 70%
+        if role_ratio >= 0.70:
             return True
 
     return False
