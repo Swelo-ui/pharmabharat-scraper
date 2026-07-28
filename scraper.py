@@ -164,23 +164,25 @@ def is_date_expired(date_str, text_content=None, is_walkin=False):
             except Exception:
                 pass
 
-        # Match single walk-in date near walk-in keywords
+        # Match single walk-in date near walk-in keywords — only expire if older than 14 days
         single_walkin = re.search(r'(?:walk[\-\s]?in|interview|drive)\s*(?:on|date|\]|:)\s*(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})', text_content, re.IGNORECASE)
         if single_walkin:
             try:
                 d, m, y = int(single_walkin.group(1)), int(single_walkin.group(2)), int(single_walkin.group(3))
                 event_date = datetime(y, m, d).date()
-                if event_date < today:
+                if (today - event_date).days > 14:
                     return True
+                else:
+                    return False
             except Exception:
                 pass
 
-    # Check posted date age (general jobs older than 60 days are expired)
+    # Check posted date age (general jobs older than 90 days are expired)
     if date_str:
         try:
             clean_str = date_str.replace(",", "").strip()
             p_dt = datetime.strptime(clean_str, "%B %d %Y").date()
-            if (today - p_dt).days > 60:
+            if (today - p_dt).days > 90:
                 return True
         except Exception:
             pass

@@ -2690,19 +2690,18 @@ function renderModalJobData(job) {
 
 // Open Job Detail Modal with INSTANT (0ms) render from memory
 function openJobModal(slug) {
+  // Check if job is already cached in client memory & populate FIRST
+  let cachedJob = allLoadedJobs[slug];
+  if (cachedJob) {
+    renderModalJobData(cachedJob);
+  }
+
   const alreadyOpen = document.getElementById("job-modal").classList.contains("open");
   if (!alreadyOpen) openModalWithHistory("job-modal");
   else setNativeSwipeRefresh(false);
   
   switchModalTab('overview');
   resetModalScroll();
-
-  // Check if job is already cached in client memory
-  let cachedJob = allLoadedJobs[slug];
-  if (cachedJob) {
-    // INSTANT 0ms Render! No loading spinners ever!
-    renderModalJobData(cachedJob);
-  }
 
   // Silent background fetch to update or load details if needed
   fetch(`/api/job/${encodeURIComponent(slug)}`)
