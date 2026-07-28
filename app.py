@@ -85,12 +85,17 @@ def api_push_broadcast():
 
 @app.route("/api/telegram/scrape", methods=["POST", "GET"])
 def api_telegram_scrape():
-    try:
-        import telegram_scraper
-        added = telegram_scraper.scrape_telegram_channels()
-        return jsonify({"status": "success", "new_jobs_added": len(added), "slugs": added})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 200
+    import threading
+    import telegram_scraper
+    def _async_task():
+        try:
+            telegram_scraper.scrape_telegram_channels()
+        except Exception:
+            pass
+    thread = threading.Thread(target=_async_task)
+    thread.daemon = True
+    thread.start()
+    return jsonify({"status": "success", "message": "Telegram channel scrape triggered in background"})
 
 
 @app.route("/api/app-version")
