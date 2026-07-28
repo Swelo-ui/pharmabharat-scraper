@@ -226,7 +226,10 @@ def init_db():
         ]
         for col_name, sql in migrations:
             if col_name not in cols:
-                conn.execute(sql)
+                try:
+                    conn.execute(sql)
+                except Exception:
+                    pass
         # Set all existing rows to active if is_active is NULL
         conn.execute("UPDATE jobs SET is_active = 1 WHERE is_active IS NULL")
         # Composite indexes created AFTER migration so columns exist
@@ -240,6 +243,61 @@ def init_db():
     backfill_contacts()
     backfill_banners()
     backfill_posted_timestamps()
+    seed_from_json()
+
+
+def seed_from_json():
+    """Ensure database is auto-seeded from jobs_seed.json on container startup if fresh or missing jobs."""
+    import os, json
+    seed_file = "jobs_seed.json"
+    if not os.path.exists(seed_file):
+        return
+    try:
+        with open(seed_file, "r", encoding="utf-8") as f:
+            seed_jobs = json.load(f)
+        if not seed_jobs:
+            return
+        with get_conn() as conn:
+            cur_count = conn.execute("SELECT COUNT(*) FROM jobs WHERE is_active = 1").fetchone()[0]
+            if cur_count < len(seed_jobs):
+                for j in seed_jobs:
+                    conn.execute("""
+                        INSERT INTO jobs (
+                            slug, url, title, company, category, experience_raw, is_fresher, is_fresher_friendly,
+                            salary, location, application_type, verified, posted_date_raw, posted_timestamp,
+                            description_md, detail_scraped, first_seen_at, scraped_at, notified, email, phone, banner_url, source, is_active
+                        ) VALUES (
+                            :slug, :url, :title, :company, :category, :experience_raw, :is_fresher, :is_fresher_friendly,
+                            :salary, :location, :application_type, :verified, :posted_date_raw, :posted_timestamp,
+                            :description_md, :detail_scraped, :first_seen_at, :scraped_at, :notified, :email, :phone, :banner_url, :source, 1
+                        ) ON CONFLICT(slug) DO UPDATE SET is_active = 1
+                    """, {
+                        "slug": j.get("slug"),
+                        "url": j.get("url"),
+                        "title": j.get("title"),
+                        "company": j.get("company"),
+                        "category": j.get("category"),
+                        "experience_raw": j.get("experience_raw"),
+                        "is_fresher": j.get("is_fresher", 0),
+                        "is_fresher_friendly": j.get("is_fresher_friendly", 0),
+                        "salary": j.get("salary"),
+                        "location": j.get("location"),
+                        "application_type": j.get("application_type"),
+                        "verified": j.get("verified", 0),
+                        "posted_date_raw": j.get("posted_date_raw"),
+                        "posted_timestamp": j.get("posted_timestamp"),
+                        "description_md": j.get("description_md"),
+                        "detail_scraped": j.get("detail_scraped", 0),
+                        "first_seen_at": j.get("first_seen_at"),
+                        "scraped_at": j.get("scraped_at"),
+                        "notified": j.get("notified", 0),
+                        "email": j.get("email"),
+                        "phone": j.get("phone"),
+                        "banner_url": j.get("banner_url"),
+                        "source": j.get("source", "pharmabharat")
+                    })
+    except Exception:
+        pass
 
 
 def _clean_str(text: str) -> str:
