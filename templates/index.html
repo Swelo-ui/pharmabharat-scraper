@@ -2480,7 +2480,7 @@ function createJobCardInnerHtml(job) {
 
     ${job.banner_url ? `
     <div class="card-banner-thumb" onclick="event.stopPropagation(); openJobModal('${job.slug}')">
-      <img src="${job.banner_url}" alt="Job Banner" loading="lazy" onerror="this.parentElement.style.display='none'">
+      <img src="${job.banner_url}" alt="Job Banner" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentElement.style.display='none'">
     </div>` : ''}
 
     <div class="job-meta-grid">
@@ -2612,7 +2612,7 @@ function renderModalJobData(job) {
       <div class="job-banner-badge">
         <i data-lucide="image" style="width:12px;height:12px;"></i> Official Recruitment Flyer / Poster (Tap to Zoom HD)
       </div>
-      <img src="${job.banner_url}" class="job-banner-img" alt="Official Job Banner" onclick="openImageLightbox('${job.banner_url}')" onerror="if(this.closest('.job-banner-card')) this.closest('.job-banner-card').style.display='none'">
+      <img src="${job.banner_url}" class="job-banner-img" alt="Official Job Banner" referrerpolicy="no-referrer" onclick="openImageLightbox('${job.banner_url}')" onerror="if(this.closest('.job-banner-card')) this.closest('.job-banner-card').style.display='none'">
     </div>` : '';
 
   const degrees = job.degrees || detectDegrees(job.title, job.description_md, job.category);
