@@ -593,6 +593,8 @@ def upsert_job(job: dict) -> bool:
                 int(job.get("detail_scraped", False)),
                 int(time.time()),
                 int(time.time()),
+                0,  # notified
+                1,  # is_active
                 job.get("email"),
                 job.get("phone"),
                 job.get("banner_url"),
