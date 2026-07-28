@@ -611,9 +611,16 @@ def query_jobs(category=None, fresher_only=False, verified_only=False,
         ).fetchall()
 
         job_list = []
+        now_ts = int(time.time())
         for r in rows:
             d = dict(r)
             d["degrees"] = detect_degrees(d.get("title"), d.get("description_md"), d.get("category"))
+            first_seen = d.get("first_seen_at") or 0
+            # If discovered within last 24h and has a detailed posted_date_raw
+            if (now_ts - first_seen) < 86400 and d.get("posted_date_raw") and d.get("detail_scraped"):
+                d["date_updated_recently"] = True
+            else:
+                d["date_updated_recently"] = False
             job_list.append(d)
 
         return {

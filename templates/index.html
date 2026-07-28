@@ -496,6 +496,24 @@
     touch-action: manipulation;
   }
 
+  .posted-date.updated-date-highlight {
+    background: rgba(245, 158, 11, 0.18) !important;
+    color: #d97706 !important;
+    border: 1px solid rgba(245, 158, 11, 0.4) !important;
+    padding: 3px 8px !important;
+    border-radius: 6px !important;
+    font-weight: 700 !important;
+    font-size: 0.72rem !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+  }
+  .dark-mode .posted-date.updated-date-highlight {
+    background: rgba(251, 191, 36, 0.22) !important;
+    color: #fbbf24 !important;
+    border-color: rgba(251, 191, 36, 0.5) !important;
+  }
+
   /* Category & Location Sheet Modal */
   .category-sheet {
     max-height: 80vh !important;
@@ -2363,7 +2381,12 @@ function switchModalTab(tab) {
 function formatJobDate(job) {
   if (!job) return "";
   
-  // If first seen today (within last 24h), show relative time so dates don't jump
+  // If date was updated after deep detail scrape within 24h, highlight in distinct Amber color!
+  if (job.date_updated_recently && job.posted_date_raw && job.posted_date_raw.trim().length > 3) {
+    return `<span class="posted-date updated-date-highlight" title="Official published date verified from website"><i data-lucide="history" style="width:11px;height:11px;"></i> ${job.posted_date_raw.trim()}</span>`;
+  }
+
+  // If first seen today (within last 24h) and not deep scraped yet, show relative time
   const now = Math.floor(Date.now() / 1000);
   if (job.first_seen_at) {
     const diff = now - job.first_seen_at;
