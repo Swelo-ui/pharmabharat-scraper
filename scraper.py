@@ -177,12 +177,16 @@ def is_date_expired(date_str, text_content=None, is_walkin=False):
             except Exception:
                 pass
 
-    # Check posted date age (general jobs older than 90 days are expired)
+    # Never expire jobs from current year 2026!
+    if (date_str and "2026" in date_str) or (text_content and "2026" in text_content):
+        return False
+
+    # Check posted date age (general jobs older than 180 days are expired)
     if date_str:
         try:
             clean_str = date_str.replace(",", "").strip()
             p_dt = datetime.strptime(clean_str, "%B %d %Y").date()
-            if (today - p_dt).days > 90:
+            if (today - p_dt).days > 180:
                 return True
         except Exception:
             pass
