@@ -2269,9 +2269,9 @@ function fetchStats() {
       document.getElementById("stat-total").textContent = data.total || 0;
       document.getElementById("stat-fresher").textContent = data.fresher || 0;
       document.getElementById("stat-verified").textContent = data.verified || 0;
-      // Use last_sync_at (actual sync time) - falls back to last_updated (max DB job ts)
       const syncTs = data.last_sync_at || data.last_updated;
       document.getElementById("stat-last-updated").textContent = timeAgo(syncTs);
+      try { localStorage.setItem("pb_cached_stats", JSON.stringify(data)); } catch(e) {}
     })
     .catch(() => {
       setTimeout(fetchStats, 2500);
@@ -2485,6 +2485,10 @@ function renderJobs(data) {
   const isFiltered = state.fresher_only || state.verified_only || state.saved_only || state.category || state.degree || state.location || state.q;
   const filterBar = document.getElementById("active-filter-bar");
   if (filterBar) filterBar.style.display = isFiltered ? "flex" : "none";
+
+  if (!isFiltered && data && data.jobs && data.jobs.length > 0) {
+    try { localStorage.setItem("pb_cached_jobs", JSON.stringify(data)); } catch(e) {}
+  }
 
   if (jobs.length === 0) {
     container.innerHTML = `
@@ -3479,19 +3483,39 @@ setInterval(fetchStats, 60000);
 
 // Initialize
 document.addEventListener("DOMContentLoaded", () => {
+  // 1. 0ms Instant Cache Hydration (Zero Blank Screen Guarantee)
+  try {
+    const cachedStats = localStorage.getItem("pb_cached_stats");
+    if (cachedStats) {
+      const data = JSON.parse(cachedStats);
+      document.getElementById("stat-total").textContent = data.total || 0;
+      document.getElementById("stat-fresher").textContent = data.fresher || 0;
+      document.getElementById("stat-verified").textContent = data.verified || 0;
+      const syncTs = data.last_sync_at || data.last_updated;
+      document.getElementById("stat-last-updated").textContent = timeAgo(syncTs);
+    }
+    const cachedJobs = localStorage.getItem("pb_cached_jobs");
+    if (cachedJobs) {
+      const data = JSON.parse(cachedJobs);
+      if (data && data.jobs && data.jobs.length > 0) {
+        renderJobs(data);
+      }
+    }
+  } catch(e) {}
+
   if (window.lucide) lucide.createIcons();
   updateSavedCount();
   fetchStats();
   loadDropdowns();
   fetchJobs();
 
-  // Self-Healing Liveness Auto-Poller: If screen displays '--' or blank feed during server restart, auto-recover!
+  // Self-Healing Liveness Auto-Poller: If screen displays '--' or blank feed during server restart/cold-start, auto-recover!
   let initCheckCount = 0;
   const initPoller = setInterval(() => {
     const totalEl = document.getElementById("stat-total");
     const feed = document.getElementById("job-feed");
     const isBlank = !totalEl || totalEl.textContent === "--" || totalEl.textContent === "0" || !feed || feed.children.length === 0 || feed.innerHTML.includes("Reconnecting");
-    if (isBlank && initCheckCount < 15) {
+    if (isBlank && initCheckCount < 20) {
       initCheckCount++;
       fetchStats();
       fetchJobs();

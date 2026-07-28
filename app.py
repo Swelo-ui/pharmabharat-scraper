@@ -14,6 +14,19 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__, template_folder=os.path.join(BASE_DIR, "templates"))
 db.init_db()
 
+# ─── Anti-Sleep Keepalive Thread (Prevents Render Free Tier 15-min Sleep) ───
+def _keepalive_ping_loop():
+    import urllib.request
+    time.sleep(20)
+    while True:
+        try:
+            urllib.request.urlopen("https://pharmabharat-scraper.onrender.com/api/stats", timeout=10)
+        except Exception:
+            pass
+        time.sleep(480)  # Ping self every 8 minutes
+
+threading.Thread(target=_keepalive_ping_loop, daemon=True).start()
+
 # ─── Scrape State ─────────────────────────────────────────────────────────────
 is_scraping = False
 last_scrape_status = {
