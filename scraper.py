@@ -462,6 +462,7 @@ def parse_detail_page(html):
                         tag["href"] = f"mailto:{decoded}"
 
     markdown = md(str(container), heading_style="ATX")
+    markdown = re.sub(r"^(?i)\s*Share\s+With\s+Your\s+Friends\s*\n*", "", markdown.strip())
     # Clean TOC table of contents markdown block if present
     markdown = re.sub(r"(?i)\n*#*\s*Contents\s*\n+(\s*[\*\-]\s*\[?\d+\.?\d*.*?\]?\(#.*?\)\s*\n?)+", "\n\n", markdown)
     markdown = re.sub(r"(?i)\n*#*\s*Contents\s*\n+(\s*\d+\.\s*\[?.*?\]?\(#.*?\)\s*\n?)+", "\n\n", markdown)
