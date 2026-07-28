@@ -144,15 +144,15 @@ NOISE_WORDS = {"apply now", "ad", "advertisement"}
 def is_date_expired(date_str, text_content=None, is_walkin=False):
     """
     Smart Event Date Expiration Checker:
-    1. Extracts exact walk-in event dates/ranges (e.g., '28-07-2026 to 31-07-2026' or '22/07/2026').
-       If the last day of the walk-in event has passed (end_date < today), returns True (Expired).
-    2. If no event date range found, checks posted date age. Posts > 30 days old are expired.
+    1. Only checks walk-in event dates if explicitly tagged as walk-in / interview drive.
+    2. Does NOT expire general jobs based on random historical dates mentioned in description text.
     """
     today = datetime.now().date()
 
-    if text_content:
-        # Match date ranges like '28-07-2026 to 31-07-2026' or '28/07/2026 - 31/07/2026'
-        range_match = re.search(r'(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})\s*(?:to|\-)\s*(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})', text_content)
+    # Only check walk-in interview dates if it's explicitly a walk-in drive
+    if is_walkin and text_content:
+        # Match walk-in date ranges like '28-07-2026 to 31-07-2026'
+        range_match = re.search(r'(?:walk[\-\s]?in|interview|drive).*?(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})\s*(?:to|\-)\s*(\d{1,2})[\/\-\.](\d{4})', text_content, re.IGNORECASE)
         if range_match:
             try:
                 d, m, y = int(range_match.group(4)), int(range_match.group(5)), int(range_match.group(6))
@@ -160,30 +160,27 @@ def is_date_expired(date_str, text_content=None, is_walkin=False):
                 if end_date < today:
                     return True
                 else:
-                    return False  # Event is still active or upcoming!
+                    return False
             except Exception:
                 pass
 
-        # Match single dates like '22-07-2026' or '22/07/2026' in text_content
-        single_dates = re.findall(r'(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})', text_content)
-        if single_dates:
-            latest_date = None
-            for d_str, m_str, y_str in single_dates:
-                try:
-                    dt = datetime(int(y_str), int(m_str), int(d_str)).date()
-                    if latest_date is None or dt > latest_date:
-                        latest_date = dt
-                except Exception:
-                    pass
-            if latest_date and latest_date < today:
-                return True
+        # Match single walk-in date near walk-in keywords
+        single_walkin = re.search(r'(?:walk[\-\s]?in|interview|drive)\s*(?:on|date|:][\s\w]*?(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})', text_content, re.IGNORECASE)
+        if single_walkin:
+            try:
+                d, m, y = int(single_walkin.group(1)), int(single_walkin.group(2)), int(single_walkin.group(3))
+                event_date = datetime(y, m, d).date()
+                if event_date < today:
+                    return True
+            except Exception:
+                pass
 
-    # Check posted date age (general jobs older than 30 days are expired)
+    # Check posted date age (general jobs older than 60 days are expired)
     if date_str:
         try:
             clean_str = date_str.replace(",", "").strip()
             p_dt = datetime.strptime(clean_str, "%B %d %Y").date()
-            if (today - p_dt).days > 30:
+            if (today - p_dt).days > 60:
                 return True
         except Exception:
             pass

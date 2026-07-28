@@ -62,8 +62,8 @@ def job_cycle():
         sent = notifier.notify_new_jobs()
         log.info("✓ Sent %s notification(s).", sent)
 
-        # Purge jobs older than 30 days (mark inactive)
-        purged = db.purge_expired(days=30)
+        # Purge jobs older than 90 days (mark inactive)
+        purged = db.purge_expired(days=90)
         if purged:
             log.info("✓ Marked %s old jobs as inactive.", purged)
 
