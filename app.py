@@ -363,7 +363,8 @@ def _run_scrape_bg(pages):
         is_scraping = False
         last_scrape_status["running"] = False
         last_scrape_status["completed_at"] = int(time.time())
-        db.set_last_sync_time(last_scrape_status["completed_at"])
+        if last_scrape_status.get("new_jobs", 0) > 0:
+            db.set_last_sync_time(last_scrape_status["completed_at"])
         db.export_seed_json()
 
         # Record in history

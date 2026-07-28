@@ -57,7 +57,8 @@ def job_cycle():
         new_slugs = scraper.scrape_all_recent(pages=LISTING_PAGES_TO_CHECK, deep=True)
         total_new = len(tg_slugs) + len(new_slugs)
         log.info("✓ Found %s total new job(s) across Web & Telegram.", total_new)
-        db.set_last_sync_time()
+        if total_new > 0:
+            db.set_last_sync_time()
 
         sent = notifier.notify_new_jobs()
         log.info("✓ Sent %s notification(s).", sent)

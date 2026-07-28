@@ -699,14 +699,18 @@ def set_last_sync_time(ts: int | None = None):
 
 
 def get_last_sync_time() -> int:
-    """Fetch exact timestamp of last completed scrape from DB meta table."""
+    """Fetch exact timestamp of last completed scrape with new jobs from DB meta table or max job timestamp."""
     try:
         with get_conn() as conn:
             row = conn.execute("SELECT value FROM meta WHERE key = 'last_sync_at'").fetchone()
             if row and row["value"]:
-                return int(row["value"])
-            row_max = conn.execute("SELECT MAX(first_seen_at) as m FROM jobs WHERE is_active = 1").fetchone()
-            return row_max["m"] if row_max and row_max["m"] else int(time.time())
+                val = int(row["value"])
+                if val <= int(time.time()):
+                    return val
+            row_max = conn.execute("SELECT MAX(posted_timestamp) as m FROM jobs WHERE is_active = 1 AND posted_timestamp <= ?", (int(time.time()),)).fetchone()
+            if row_max and row_max["m"]:
+                return row_max["m"]
+            return int(time.time())
     except Exception:
         return int(time.time())
 
