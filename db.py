@@ -132,6 +132,49 @@ def backfill_banners():
         pass
 
 
+KNOWN_BRANDS = [
+    "Eli Lilly", "Lilly", "IQVIA", "Sandoz", "Colgate", "Accenture", "Emcure", "Emnar Pharma",
+    "Medreich Pharma", "Medreich", "GNE Lifesciences", "Strides", "Zydus", "Lupin", "Sun Pharma",
+    "Sun Pharmaceutical", "Novartis", "Pfizer", "Merck", "Baxter", "Medtronic", "CorroHealth",
+    "ChiroKHealth", "Thermo Fisher", "Thermo Fisher Scientific", "Labcorp", "Icon", "Parexel",
+    "Fortrea", "Syneos Health", "ProPharma", "Wipro", "Clario", "RevClinical", "Veeda Clinical Research",
+    "Aet Laboratories", "Micro Labs", "Bharat Biotech", "RPG Life Sciences", "Sigachi Industries",
+    "Macleods Pharma", "MSN Biotech", "MSN Laboratories", "IPCA Laboratories", "Farbe Firma",
+    "Jubilant Biosys", "Altrakem", "Salus Pharmaceuticals", "Immacule Lifesciences", "Baroque Pharmaceuticals",
+    "Zenotech Laboratories", "Clarivate", "Ciron Drugs", "Stellar Formulations", "Piramal Pharma", "Marisym Biologicals",
+    "Harris", "Bristol Myers Squibb", "Script Assist", "UPSC", "IIT Hyderabad", "West Coast Pharmaceutical",
+    "Milan Laboratories", "Gufic Biosciences", "Reckitt", "Heranba Group", "Dr. Reddy", "Klinera", "Mitocon Biopharma"
+]
+
+def extract_company_from_text(title: str, text: str = "") -> str:
+    combined = f"{title or ''} {text or ''}"
+    for brand in KNOWN_BRANDS:
+        pattern = r'\b' + re.escape(brand) + r'\b'
+        if re.search(pattern, combined, re.IGNORECASE):
+            return brand
+
+    match = re.split(r'\b(?:hiring|is hiring|walk[\-\s]?in|announces|careers|openings|recruitment|vacancy)\b', title or "", flags=re.IGNORECASE)
+    if match and len(match[0].strip()) > 2:
+        candidate = match[0].strip().rstrip(" -:|")
+        if len(candidate.split()) <= 4 and candidate.lower() not in ["new pharma job", "pharma jobs", "20 vacancies"]:
+            return candidate
+
+    return "Pharma Company"
+
+
+def backfill_companies():
+    """Ensure all jobs in DB have crisp, accurate company names extracted from title/description."""
+    try:
+        with get_conn() as conn:
+            rows = conn.execute("SELECT slug, title, company, description_md FROM jobs WHERE company IS NULL OR company = '' OR company = 'None' OR company = 'PHARMA COMPANY'").fetchall()
+            for r in rows:
+                extracted = extract_company_from_text(r["title"], r["description_md"])
+                if extracted and extracted != "Pharma Company":
+                    conn.execute("UPDATE jobs SET company = ? WHERE slug = ?", (extracted, r["slug"]))
+    except Exception:
+        pass
+
+
 def parse_posted_timestamp(date_raw: str | None) -> int | None:
     """Parse raw string like 'July 25, 2026', '2 hours ago', 'July 24, 2026' to epoch timestamp."""
     if not date_raw:
@@ -239,10 +282,11 @@ def init_db():
         conn.execute("CREATE INDEX IF NOT EXISTS idx_active_cat_fresher ON jobs(is_active, category, is_fresher_friendly)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_source ON jobs(source)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_posted_ts ON jobs(posted_timestamp)")
-    # Auto-extract email/phone, banner images & posted timestamps for existing jobs
+    # Auto-extract email/phone, banner images, posted timestamps & company names for existing jobs
     backfill_contacts()
     backfill_banners()
     backfill_posted_timestamps()
+    backfill_companies()
     seed_from_json()
 
 
