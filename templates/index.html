@@ -554,6 +554,15 @@
     display: flex;
     align-items: center;
     gap: 10px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .category-item .cat-left span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
 
   /* Integrated Active Filter Bar & Reset Button */
@@ -763,7 +772,17 @@
     font-size: 0.78rem;
     font-weight: 600;
     color: var(--ink-muted);
+    max-width: 100%;
+    overflow: hidden;
   }
+
+  .meta-pill span, .meta-pill strong {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 160px;
+  }
+
 
   .meta-pill strong {
     color: var(--ink);
@@ -2213,10 +2232,21 @@ function sanitizeSalary(raw) {
 // Location sanitizer — filter out long paragraph sentences or junk text
 function sanitizeLocation(raw) {
   if (!raw) return null;
-  const s = raw.trim();
-  if (s.length > 40 || s.includes('\n') || s.includes('.') || /is a|conducting|looking for|join|opportunity/i.test(s)) {
-    return null;
-  }
+  let s = raw.trim();
+  // Reject junk: markdown labels, company names, sentences
+  if (/\*\*|Job Location|Company Name|INDIAN AIR FORCE|Biophore|CDSCO/i.test(s)) return null;
+  // Strip markdown bold **
+  s = s.replace(/\*+/g, '').trim();
+  // Take only first city from "City, State, India" form
+  const parts = s.split(',').map(p => p.trim());
+  if (parts.length >= 2) s = parts[0];
+  // Normalize Bangalore -> Bengaluru
+  s = s.replace(/\bBangalore\b/gi, 'Bengaluru');
+  // Strip long parenthetical suffixes
+  s = s.replace(/\s*\([^)]{12,}\)/g, '').trim();
+  // Reject if still too long or generic
+  if (!s || s.length > 30 || /^India$/i.test(s)) return null;
+  if (/pharmaceutical|looking|hiring|opportunity|company|ltd/i.test(s)) return null;
   return s;
 }
 
@@ -2297,18 +2327,19 @@ function loadDropdowns() {
     .then(locs => {
       const container = document.getElementById("location-list-items");
       const list = [{ slug: "", name: "All Locations" }];
-      
+
+      // API already returns normalized+deduped cities; just render them
       locs.forEach(l => {
-        if (l) list.push({ slug: l, name: l });
+        if (l && l.trim()) list.push({ slug: l, name: l });
       });
 
       container.innerHTML = list.map(item => `
         <div class="category-item ${state.location === item.slug ? 'active' : ''}" onclick="selectLocation('${item.slug.replace(/'/g,"\\'")}', '${item.name.replace(/'/g,"\\'")}')">
           <div class="cat-left">
-            <i data-lucide="map-pin" style="width:18px;height:18px;color:var(--primary);"></i>
+            <i data-lucide="map-pin" style="width:18px;height:18px;flex-shrink:0;color:var(--primary);"></i>
             <span>${item.name}</span>
           </div>
-          ${state.location === item.slug ? '<i data-lucide="check" style="width:16px;height:16px;color:var(--primary);"></i>' : '<i data-lucide="chevron-right" style="width:14px;height:14px;color:var(--ink-soft);"></i>'}
+          ${state.location === item.slug ? '<i data-lucide="check" style="width:16px;height:16px;flex-shrink:0;color:var(--primary);"></i>' : '<i data-lucide="chevron-right" style="width:14px;height:14px;flex-shrink:0;color:var(--ink-soft);"></i>'}
         </div>
       `).join("");
 

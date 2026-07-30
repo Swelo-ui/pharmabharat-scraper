@@ -1015,9 +1015,77 @@ def distinct_categories():
         return [r["category"] for r in rows]
 
 
+def _normalize_location(raw: str) -> str | None:
+    """
+    Normalize a raw location string to a clean, short city name.
+    Returns None if the string is junk/too long/not a city.
+    """
+    if not raw:
+        return None
+
+    s = raw.strip()
+
+    # Reject junk: markdown, company names, sentences, symbols
+    JUNK_PATTERNS = [
+        r'\*\*',            # markdown bold
+        r'Job Location',    # literal label
+        r'Company Name',    # literal label
+        r'INDIAN AIR FORCE',
+        r'Biophore India Pharmaceuticals',
+        r'CDSCO',
+        r'^India$',         # just "India" is too broad
+    ]
+    for pat in JUNK_PATTERNS:
+        if re.search(pat, s, re.I):
+            return None
+
+    # Strip markdown formatting: **text**, *text*
+    s = re.sub(r'\*+', '', s).strip()
+
+    # Strip trailing state/country suffix variations to get canonical city
+    # e.g., "Ahmedabad, Gujarat, India" -> "Ahmedabad"
+    # e.g., "Bangalore, Karnataka" -> "Bangalore"
+    # e.g., "Mumbai, Maharashtra, India" -> "Mumbai"
+    # But keep useful compound cities: "Navi Mumbai", "Greater Noida", "Bengaluru (Jigani)"
+    parts = [p.strip() for p in re.split(r',', s)]
+    if len(parts) >= 2:
+        city = parts[0]
+    else:
+        city = s
+
+    # Normalize Bengaluru <-> Bangalore (keep Bengaluru as canonical)
+    city = re.sub(r'\bBangalore\b', 'Bengaluru', city, flags=re.I)
+
+    # Strip parenthetical area names that make names too long
+    # Keep short ones e.g. "Gurugram (Hybrid)" but strip long ones
+    city_clean = re.sub(r'\s*\([^)]{12,}\)', '', city).strip()
+    if city_clean:
+        city = city_clean
+
+    # Reject if still too long (> 30 chars) or contains junk patterns
+    if len(city) > 30:
+        return None
+    if any(kw in city.lower() for kw in ['pharmaceutical', 'looking', 'hiring', 'opportunity', 'company', 'ltd']):
+        return None
+
+    return city.strip() if city.strip() else None
+
+
 def distinct_locations():
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT DISTINCT location FROM jobs WHERE location IS NOT NULL AND location != '' AND is_active = 1 ORDER BY location LIMIT 50"
+            "SELECT location, COUNT(*) as cnt FROM jobs WHERE location IS NOT NULL AND location != '' AND is_active = 1 GROUP BY location ORDER BY cnt DESC"
         ).fetchall()
-        return [r["location"] for r in rows]
+
+    # Normalize and deduplicate
+    seen = set()
+    clean = []
+    for r in rows:
+        norm = _normalize_location(r["location"])
+        if norm and norm.lower() not in seen:
+            seen.add(norm.lower())
+            clean.append(norm)
+
+    # Sort alphabetically and limit
+    clean.sort()
+    return clean[:60]
