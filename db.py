@@ -230,6 +230,108 @@ def backfill_posted_timestamps():
         pass
 
 
+def determine_fresher_eligibility(experience_raw: str | None, title: str | None = "", description_md: str | None = "") -> bool:
+    """
+    Centralized, accurate classifier for Fresher eligibility.
+    Returns True if job accepts 0 years / freshers / trainees / interns.
+    Returns False if job explicitly requires 1+ years experience.
+    """
+    exp_raw = (experience_raw or "").strip()
+    exp_clean = re.sub(r'[\ufffd\u2013\u2014\u2012–—~]', '-', exp_raw).lower()
+    exp_clean = re.sub(r'\s+', ' ', exp_clean)
+    
+    title_str = (title or "").strip().lower()
+    desc_str = (description_md or "").strip().lower()
+
+    # 1. Explicit fresher / trainee / intern / entry level keywords in experience_raw
+    if any(k in exp_clean for k in ["fresher", "trainee", "intern", "entry level", "entry-level"]):
+        if "not" not in exp_clean:
+            return True
+
+    # 2. Check for 0 min experience in experience_raw (e.g. 0-1 years, 0 to 2 years, 0 - 3 years, 0 years, 0-5 years)
+    if re.search(r'\b0\d?\s*(?:-|to|\+|\s)\s*\d*\s*(?:year|yr|month)', exp_clean):
+        m_zero = re.search(r'\b0(\d+)', exp_clean)
+        if not (m_zero and int(m_zero.group(1)) > 0):
+            return True
+
+    if exp_clean in ["0 years", "0 year", "0-1 years", "0-1 year", "0"]:
+        return True
+
+    # 3. If experience_raw explicitly specifies >= 1 year min experience:
+    # e.g., '1-5 years', '3-5 years', '1 year', 'minimum 2 years', '1 to 10 years', '2-6 years', '1-4 years'
+    if exp_clean:
+        m = re.search(r'(?:min(?:imum)?\s*)?(\d+)\s*(?:-|to|\+|\s)?\s*(\d*)\s*(?:years?|yrs?|months?)', exp_clean)
+        if m:
+            num = int(m.group(1))
+            if num >= 1 and 'fresher' not in exp_clean and 'trainee' not in exp_clean and 'intern' not in exp_clean:
+                return False
+
+        if "experience preferred" in exp_clean or "experience required" in exp_clean:
+            if 'fresher' not in exp_clean and '0' not in exp_clean:
+                return False
+
+    # 4. Check title for explicit fresher / trainee / intern keywords ONLY IF experience_raw is missing or 0
+    if any(k in title_str for k in ["fresher", "freshers", "trainee", "intern"]):
+        return True
+
+    # 5. Check description if title and experience_raw are empty/ambiguous
+    if not exp_clean:
+        if any(k in desc_str[:500] for k in ["fresher", "freshers", "0-1 year", "0 to 1", "0-2 year", "0 to 2", "trainee", "intern"]):
+            if "not eligible for fresher" not in desc_str and "freshers cannot apply" not in desc_str:
+                return True
+
+    return False
+
+
+def sanitize_fresher_tags():
+    """
+    Re-evaluate is_fresher, is_fresher_friendly, and category across all active jobs.
+    Fixes cases where experienced jobs (>0 years) were mistakenly tagged as FRESHER.
+    """
+    try:
+        with get_conn() as conn:
+            rows = conn.execute("SELECT slug, title, experience_raw, description_md, is_fresher_friendly, category FROM jobs").fetchall()
+            updated_count = 0
+            for r in rows:
+                slug = r["slug"]
+                exp = r["experience_raw"]
+                title = r["title"]
+                desc = r["description_md"]
+                old_ff = r["is_fresher_friendly"]
+                old_cat = r["category"]
+
+                new_ff = int(determine_fresher_eligibility(exp, title, desc))
+                new_cat = old_cat
+                if not new_ff and old_cat == "freshers-jobs":
+                    full_text = f"{title or ''} {desc or ''}".lower()
+                    if "production" in full_text or "manufacturing" in full_text:
+                        new_cat = "production-jobs"
+                    elif "quality control" in full_text or "qc " in full_text:
+                        new_cat = "quality-control-jobs"
+                    elif "research" in full_text or "r&d" in full_text or "formulation" in full_text or "dmpk" in full_text or "chemistry" in full_text:
+                        new_cat = "research-and-development-jobs"
+                    elif "pharmacovigilance" in full_text or "pv " in full_text or "safety" in full_text:
+                        new_cat = "pharmacovigilance-jobs"
+                    elif "regulatory" in full_text or "ra " in full_text:
+                        new_cat = "regulatory-affairs-jobs"
+                    elif "clinical" in full_text or "tmf" in full_text or "cra" in full_text:
+                        new_cat = "clinical-research-jobs"
+                    else:
+                        new_cat = "quality-assurance-jobs"
+
+                if old_ff != new_ff or old_cat != new_cat:
+                    conn.execute(
+                        "UPDATE jobs SET is_fresher = ?, is_fresher_friendly = ?, category = ? WHERE slug = ?",
+                        (new_ff, new_ff, new_cat, slug)
+                    )
+                    updated_count += 1
+            print(f"sanitize_fresher_tags complete: Updated {updated_count} jobs in DB.")
+        if updated_count > 0:
+            export_seed_json()
+    except Exception as e:
+        print(f"Error in sanitize_fresher_tags: {e}")
+
+
 def init_db():
     with get_conn() as conn:
         conn.execute("PRAGMA journal_mode=WAL")
@@ -288,6 +390,7 @@ def init_db():
     backfill_posted_timestamps()
     backfill_companies()
     seed_from_json()
+    sanitize_fresher_tags()
 
 
 _last_github_sync_time = 0
@@ -578,6 +681,7 @@ def upsert_job(job: dict) -> bool:
             return False
 
         posted_ts = parse_posted_timestamp(job.get("posted_date_raw")) or int(time.time())
+        is_ff = int(determine_fresher_eligibility(job.get("experience_raw"), job.get("title"), job.get("description_md")))
         res = conn.execute(
             """
             INSERT OR IGNORE INTO jobs (
@@ -595,8 +699,8 @@ def upsert_job(job: dict) -> bool:
                 job.get("company"),
                 job.get("category"),
                 job.get("experience_raw"),
-                int(job.get("is_fresher", False)),
-                int(job.get("is_fresher_friendly", False)),
+                is_ff,
+                is_ff,
                 job.get("salary"),
                 job.get("location"),
                 job.get("application_type"),
@@ -649,6 +753,11 @@ def update_detail(slug: str, description_md: str, extra: dict):
         )
         if b_url and (any(ext in b_url.lower() for ext in [".jpg", ".jpeg", ".png", ".webp", ".gif"]) or "/wp-content/uploads/" in b_url):
             conn.execute("UPDATE jobs SET banner_url = ? WHERE slug = ?", (b_url, slug))
+            
+        row = conn.execute("SELECT title, experience_raw FROM jobs WHERE slug = ?", (slug,)).fetchone()
+        if row:
+            is_ff = int(determine_fresher_eligibility(row["experience_raw"], row["title"], description_md))
+            conn.execute("UPDATE jobs SET is_fresher = ?, is_fresher_friendly = ? WHERE slug = ?", (is_ff, is_ff, slug))
     export_seed_json()
 
 

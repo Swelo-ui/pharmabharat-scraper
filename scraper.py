@@ -360,8 +360,8 @@ def parse_listing_page(html, category=None):
         location_found = _sanitize(location_found)
         experience = _sanitize(experience)
 
-        is_fresher = bool(re.search(r"\bfreshers?\b", experience or "", flags=re.I))
-        is_fresher_friendly = is_fresher or bool(re.match(r"^\s*0\s*[-–—]", experience or ""))
+        is_fresher_friendly = db.determine_fresher_eligibility(experience, title)
+        is_fresher = is_fresher_friendly
 
         slug = _slug_from_url(href)
         jobs.append({
@@ -554,13 +554,12 @@ def parse_detail_page(html):
         app_type = "Virtual Interview"
 
     # Auto-detect Fresher eligibility
-    is_fresher = False
-    if any(k in full_text for k in ["fresher", "freshers", "0-1 year", "0-2 year", "0 to 1", "0 to 2", "trainee", "intern"]):
-        is_fresher = True
+    is_fresher = db.determine_fresher_eligibility(extra.get("experience_raw"), page_title, markdown)
+    is_fresher_friendly = is_fresher
 
     # Auto-detect Category
     category = "quality-assurance-jobs"
-    if "fresher" in full_text or "intern" in full_text:
+    if is_fresher:
         category = "freshers-jobs"
     elif "production" in full_text or "manufacturing" in full_text:
         category = "production-jobs"
@@ -859,8 +858,8 @@ def parse_pr_listing_page(html, source="pharmarecruiter"):
             app_type = "Walk In Interview"
 
         # Fresher detection from title
-        is_fresher = bool(re.search(r"\bfreshers?\b", title, flags=re.I))
-        is_fresher_friendly = is_fresher
+        is_fresher_friendly = db.determine_fresher_eligibility(None, title)
+        is_fresher = is_fresher_friendly
 
         # Company heuristic from title
         company = _pr_company_from_title(title)
