@@ -438,15 +438,16 @@
   /* Responsive Select Dropdowns 2x2 Grid */
   .selects-wrapper {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
     margin-top: 8px;
     width: 100%;
+    box-sizing: border-box;
   }
 
   .select-btn {
     height: 42px;
-    padding: 0 10px;
+    padding: 0 8px;
     border-radius: 12px;
     border: 1.5px solid var(--border);
     background: var(--surface);
@@ -459,6 +460,8 @@
     justify-content: space-between;
     cursor: pointer;
     width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
     box-shadow: var(--shadow-sm);
     transition: border-color 0.18s ease;
     touch-action: manipulation;
@@ -467,15 +470,25 @@
   .select-btn .btn-left {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     min-width: 0;
     flex: 1;
+    overflow: hidden;
+  }
+
+  .select-btn .btn-left i,
+  .select-btn .btn-left svg,
+  .select-btn > i,
+  .select-btn > svg {
+    flex-shrink: 0;
   }
 
   .select-btn .btn-left span {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    min-width: 0;
+    display: block;
   }
 
   .select-chip {
@@ -2233,19 +2246,17 @@ function sanitizeSalary(raw) {
 function sanitizeLocation(raw) {
   if (!raw) return null;
   let s = raw.trim();
-  // Reject junk: markdown labels, company names, sentences
   if (/\*\*|Job Location|Company Name|INDIAN AIR FORCE|Biophore|CDSCO/i.test(s)) return null;
-  // Strip markdown bold **
   s = s.replace(/\*+/g, '').trim();
-  // Take only first city from "City, State, India" form
+  s = s.replace(/^India\s*(\([^)]*\))?\s*(&|\/|and)\s*/gi, '').trim();
+  if (s.includes(' & ')) s = s.split(' & ')[0].trim();
+  if (s.includes(' / ')) s = s.split(' / ')[0].trim();
+  if (s.includes(' and ')) s = s.split(' and ')[0].trim();
   const parts = s.split(',').map(p => p.trim());
   if (parts.length >= 2) s = parts[0];
-  // Normalize Bangalore -> Bengaluru
   s = s.replace(/\bBangalore\b/gi, 'Bengaluru');
-  // Strip long parenthetical suffixes
-  s = s.replace(/\s*\([^)]{12,}\)/g, '').trim();
-  // Reject if still too long or generic
-  if (!s || s.length > 30 || /^India$/i.test(s)) return null;
+  s = s.replace(/\s*\([^)]*\)/g, '').trim();
+  if (!s || s.length > 25 || /^(india|remote)$/i.test(s)) return null;
   if (/pharmaceutical|looking|hiring|opportunity|company|ltd/i.test(s)) return null;
   return s;
 }

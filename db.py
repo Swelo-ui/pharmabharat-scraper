@@ -1042,11 +1042,19 @@ def _normalize_location(raw: str) -> str | None:
     # Strip markdown formatting: **text**, *text*
     s = re.sub(r'\*+', '', s).strip()
 
+    # Strip generic country prefixes like 'India (Remote) & ' or 'India &'
+    s = re.sub(r'^India\s*(\([^)]*\))?\s*(&|/|and)\s*', '', s, flags=re.I).strip()
+
+    # Handle compound locations with ' & ', ' / ', ' and ': pick the primary city
+    if ' & ' in s:
+        s = s.split(' & ')[0].strip()
+    if ' / ' in s:
+        s = s.split(' / ')[0].strip()
+    if ' and ' in s:
+        s = s.split(' and ')[0].strip()
+
     # Strip trailing state/country suffix variations to get canonical city
     # e.g., "Ahmedabad, Gujarat, India" -> "Ahmedabad"
-    # e.g., "Bangalore, Karnataka" -> "Bangalore"
-    # e.g., "Mumbai, Maharashtra, India" -> "Mumbai"
-    # But keep useful compound cities: "Navi Mumbai", "Greater Noida", "Bengaluru (Jigani)"
     parts = [p.strip() for p in re.split(r',', s)]
     if len(parts) >= 2:
         city = parts[0]
@@ -1056,14 +1064,11 @@ def _normalize_location(raw: str) -> str | None:
     # Normalize Bengaluru <-> Bangalore (keep Bengaluru as canonical)
     city = re.sub(r'\bBangalore\b', 'Bengaluru', city, flags=re.I)
 
-    # Strip parenthetical area names that make names too long
-    # Keep short ones e.g. "Gurugram (Hybrid)" but strip long ones
-    city_clean = re.sub(r'\s*\([^)]{12,}\)', '', city).strip()
-    if city_clean:
-        city = city_clean
+    # Strip parenthetical area names or Remote tags
+    city = re.sub(r'\s*\([^)]*\)', '', city).strip()
 
-    # Reject if still too long (> 30 chars) or contains junk patterns
-    if len(city) > 30:
+    # Reject if still too long (> 25 chars) or invalid generic words
+    if not city or len(city) > 25 or city.lower() in ['india', 'remote', 'across india']:
         return None
     if any(kw in city.lower() for kw in ['pharmaceutical', 'looking', 'hiring', 'opportunity', 'company', 'ltd']):
         return None
