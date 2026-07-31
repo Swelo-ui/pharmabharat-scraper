@@ -853,6 +853,7 @@ MONTHS_MAP = {
     'nov': 11, 'november': 11, 'dec': 12, 'december': 12
 }
 
+
 def detect_is_expired(job: dict) -> bool:
     """
     Detect if walk-in event date or application deadline has passed relative to today.
@@ -863,6 +864,9 @@ def detect_is_expired(job: dict) -> bool:
         today = datetime.now().date()
         title = (job.get("title") or "").lower()
         desc = (job.get("description_md") or "").lower()
+
+        # Remove URLs to avoid false positives in file paths
+        desc = re.sub(r'https?://[^\s<>"]+', '', desc)
 
         # Ignore lines that are explicitly post/publish creation dates
         full_text = f"{title}\n{desc}"
@@ -878,29 +882,44 @@ def detect_is_expired(job: dict) -> bool:
         # 1. Match numeric date ranges like '25-07-2026 to 27-07-2026' or '25/07/2026 - 27/07/2026'
         for m in re.finditer(r'(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})\s*(?:to|\-)\s*(\d{1,2})[\/\-\.](\d{4})', text):
             d, mth, y = int(m.group(4)), int(m.group(5)), int(m.group(6))
-            try:
-                event_dates.append(datetime(y, mth, d).date())
-            except Exception:
-                pass
+            if 2000 <= y <= 2100:
+                try:
+                    event_dates.append(datetime(y, mth, d).date())
+                except Exception:
+                    pass
 
         # 2. Match single numeric dates near walk-in / interview / drive / deadline / event date keywords
         for m in re.finditer(r'(?:walk[\-\s]?in|interview|drive|deadline|last date|event date|date\s*[:\-]).*?(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})', text):
             d, mth, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
-            try:
-                event_dates.append(datetime(y, mth, d).date())
-            except Exception:
-                pass
+            if 2000 <= y <= 2100:
+                try:
+                    event_dates.append(datetime(y, mth, d).date())
+                except Exception:
+                    pass
 
-        # 3. Match word dates near walk-in / interview / drive / deadline / event date / on keywords
+        # 3. Match word dates (Day Month Year) near walk-in / interview / drive / deadline / event date / on keywords
+        # e.g. "2nd August 2026", "02 Aug 2026", "on 15 July 2026"
         for m in re.finditer(r'(?:walk[\-\s]?in|interview|drive|deadline|last date|event date|date\s*[:\-]|on\s+).*?(\d{1,2})(?:st|nd|rd|th)?\s+(?:&|and|\-)?\s*(?:(\d{1,2})(?:st|nd|rd|th)?\s+)?([a-z]+)\s+(\d{4})', text):
             d1 = int(m.group(1))
             d2 = int(m.group(2)) if m.group(2) else d1
             last_day = max(d1, d2)
             mth_str = m.group(3).lower()
             y = int(m.group(4))
-            if mth_str in MONTHS_MAP:
+            if mth_str in MONTHS_MAP and 2020 <= y <= 2035:
                 try:
                     event_dates.append(datetime(y, MONTHS_MAP[mth_str], last_day).date())
+                except Exception:
+                    pass
+
+        # 4. Match US-format word dates (Month Day, Year) near keywords
+        # e.g. "Date: August 02, 2026", "Interview on August 02, 2026", "* **Date:** August 02, 2026"
+        for m in re.finditer(r'(?:walk[\-\s]?in|interview|drive|deadline|last date|event date|date[\s:\-\*]+|on\s+).*?([a-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?[,\s]+(\d{4})', text):
+            mth_str = m.group(1).lower()
+            d = int(m.group(2))
+            y = int(m.group(3))
+            if mth_str in MONTHS_MAP and 2020 <= y <= 2035:
+                try:
+                    event_dates.append(datetime(y, MONTHS_MAP[mth_str], d).date())
                 except Exception:
                     pass
 
