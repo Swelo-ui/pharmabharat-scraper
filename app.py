@@ -399,73 +399,34 @@ def api_scrape_history():
     return jsonify(list(scrape_history))
 
 
-# ─── Keep-Alive Ping (UptimeRobot ke liye) ──────────────────────────────────
-@app.route("/api/keep-alive")
-@app.route("/ping")
-def api_keep_alive():
-    """UptimeRobot is pinged here every 5 min so PA web app stays active."""
-    return jsonify({"status": "ok", "message": "Pharmly server is alive"})
+# ─── Periodic Background Scheduler Thread ─────────────────────────────────────
+_scheduler_started = False
+_scheduler_lock = threading.Lock()
 
 
-# ─── DB Sync Endpoint (GitHub Actions calls this after every scrape) ──────────
-@app.route("/api/sync")
-def api_sync():
-    """
-    GitHub Actions calls this endpoint after committing updated jobs.db.
-    Flask downloads fresh jobs.db from GitHub raw URL and hot-swaps it.
-
-    Required query param: ?token=<PA_SYNC_TOKEN>
-    """
-    import urllib.request
-    import shutil
-    import tempfile
-
-    # ── Auth check ──────────────────────────────────────────────────────────
-    expected_token = os.environ.get("PA_SYNC_TOKEN", "")
-    provided_token = request.args.get("token", "")
-    if not expected_token or provided_token != expected_token:
-        return jsonify({"status": "error", "message": "Unauthorized"}), 403
-
-    # ── GitHub raw URL from env (or auto-detect from git remote) ─────────────
-    raw_base = os.environ.get(
-        "GH_RAW_BASE",
-        "https://raw.githubusercontent.com/Swelo-ui/pharmabharat-scraper/main"
-    )
-
-    db_url   = f"{raw_base}/jobs.db"
-    json_url = f"{raw_base}/jobs_seed.json"
-
-    synced = []
-    errors = []
-
-    for url, local_name in [(db_url, "jobs.db"), (json_url, "jobs_seed.json")]:
-        local_path = os.path.join(BASE_DIR, local_name)
+def _background_scheduler_loop():
+    """Runs in background: initial delay 10s, then scrapes every 30 mins."""
+    time.sleep(10)
+    while True:
         try:
-            with urllib.request.urlopen(url, timeout=60) as resp, \
-                 tempfile.NamedTemporaryFile(delete=False, dir=BASE_DIR, suffix=".tmp") as tmp:
-                shutil.copyfileobj(resp, tmp)
-                tmp_path = tmp.name
-            # Atomic replace — avoids partial-write corruption
-            shutil.move(tmp_path, local_path)
-            synced.append(local_name)
-        except Exception as e:
-            errors.append(f"{local_name}: {e}")
-
-    # ── Invalidate stats cache so next API call reflects new data ─────────────
-    _invalidate_stats_cache()
-
-    if errors:
-        return jsonify({"status": "partial", "synced": synced, "errors": errors}), 207
-
-    return jsonify({
-        "status": "ok",
-        "synced": synced,
-        "message": f"DB synced successfully from GitHub"
-    })
+            if not is_scraping:
+                _run_scrape_bg(pages=_adaptive_pages)
+        except Exception:
+            pass
+        time.sleep(1800)  # 30 minutes
 
 
-# NOTE: Background scheduler removed — scraping is handled by GitHub Actions.
-# Manual on-demand scrape via POST /api/scrape/trigger still works.
+def start_background_scheduler():
+    global _scheduler_started
+    with _scheduler_lock:
+        if not _scheduler_started:
+            _scheduler_started = True
+            t = threading.Thread(target=_background_scheduler_loop, daemon=True)
+            t.start()
+
+
+# Auto-start scheduler when app module is loaded
+start_background_scheduler()
 
 
 if __name__ == "__main__":
