@@ -326,8 +326,7 @@ def sanitize_fresher_tags():
                     )
                     updated_count += 1
             print(f"sanitize_fresher_tags complete: Updated {updated_count} jobs in DB.")
-        if updated_count > 0:
-            export_seed_json()
+        # Note: export_seed_json() NOT called here — runs at scrape-end in app.py instead
     except Exception as e:
         print(f"Error in sanitize_fresher_tags: {e}")
 
