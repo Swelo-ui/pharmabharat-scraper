@@ -3324,7 +3324,7 @@ liveScrapeBtn.addEventListener("click", () => {
   lastSyncCard.classList.add("syncing");
   showToast("Sync started — scanning for new jobs...");
 
-  fetch("/api/scrape/trigger", { method: "POST" })
+  fetch("/api/scrape/trigger?force_sync=true", { method: "POST" })
     .then(r => r.json())
     .then(data => {
       if (data.status === 'already_running') {
@@ -3334,7 +3334,7 @@ liveScrapeBtn.addEventListener("click", () => {
         lastSyncCard.classList.remove("syncing");
         return;
       }
-      showToast(data.message || "Scraper running!");
+      showToast(data.message || "Scraper & GitHub Sync running!");
 
       let pollCount = 0;
       const pollInterval = setInterval(() => {
@@ -3361,11 +3361,10 @@ liveScrapeBtn.addEventListener("click", () => {
               fetchStats();
               fetchJobs();
               if (st.error) {
-                console.log(`Sync error: ${st.error}`);
-              } else if (st.new_jobs > 0) {
-                console.log(`${st.new_jobs} new jobs added!`);
-                // Trigger Native System Notification on Android Phone!
-                if (window.AndroidNative && window.AndroidNative.showNativeNotification) {
+                showToast(`Sync error: ${st.error}`, 4000);
+              } else {
+                showToast(`✅ Sync complete! ${st.new_jobs || 0} new jobs & DB backed up to GitHub.`, 4000);
+                if (st.new_jobs > 0 && window.AndroidNative && window.AndroidNative.showNativeNotification) {
                   window.AndroidNative.showNativeNotification(
                     "Pharmly Job Alert",
                     `${st.new_jobs} new fresher & pharma job openings available now!`,

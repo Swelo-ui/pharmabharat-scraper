@@ -317,7 +317,7 @@ def _progress_cb(scraped_so_far, new_so_far, category=None, categories_done=0):
     last_scrape_status["categories_done"] = categories_done
 
 
-def _run_scrape_bg(pages):
+def _run_scrape_bg(pages, force_sync=False):
     global is_scraping, last_scrape_status, _adaptive_pages
     try:
         is_scraping = True
@@ -374,7 +374,8 @@ def _run_scrape_bg(pages):
         last_scrape_status["completed_at"] = int(time.time())
         if last_scrape_status.get("new_jobs", 0) > 0:
             db.set_last_sync_time(last_scrape_status["completed_at"])
-        db.export_seed_json()
+        # If manually triggered, force immediate GitHub sync bypassing the 12-hour throttle
+        db.export_seed_json(force_github_sync=force_sync)
 
         # Record in history
         scrape_history.appendleft({
@@ -385,17 +386,32 @@ def _run_scrape_bg(pages):
         })
 
 
-@app.route("/api/scrape/trigger", methods=["POST"])
+@app.route("/api/scrape/trigger", methods=["POST", "GET"])
 def api_trigger_scrape():
     global is_scraping
     if is_scraping:
         return jsonify({"status": "already_running", "message": "Scraper is already running."})
 
     pages = request.args.get("pages", _adaptive_pages, type=int)
-    t = threading.Thread(target=_run_scrape_bg, args=(pages,))
+    # Manual button clicks trigger scrape AND force instant GitHub seed sync on completion
+    force_sync = request.args.get("force_sync", "true").lower() == "true"
+    t = threading.Thread(target=_run_scrape_bg, args=(pages, force_sync))
     t.daemon = True
     t.start()
-    return jsonify({"status": "started", "message": f"Scraper started! Scanning {pages} page(s) per category."})
+    return jsonify({
+        "status": "started",
+        "message": f"Scraper started! Scanning {pages} page(s) + GitHub Seed Sync on completion."
+    })
+
+
+@app.route("/api/seed/sync", methods=["POST", "GET"])
+def api_seed_sync():
+    """Direct on-demand trigger to force-sync latest jobs database into GitHub jobs_seed.json."""
+    try:
+        res = db.export_seed_json(force_github_sync=True)
+        return jsonify({"status": "success", "result": res})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route("/api/scrape/status")
