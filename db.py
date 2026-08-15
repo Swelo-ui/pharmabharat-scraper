@@ -393,53 +393,28 @@ def init_db():
     sanitize_fresher_tags()
 
 
-_last_github_sync_time = 0
-
 def sync_github_seed():
-    """If GITHUB_TOKEN environment variable is set on Render, auto-commit jobs_seed.json directly to GitHub repo with [skip render] tag."""
-    global _last_github_sync_time
-    import os, json, base64, requests, time
-    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
-    repo = os.environ.get("GITHUB_REPOSITORY") or "Swelo-ui/pharmabharat-scraper"
-    if not token:
-        return
-    now = time.time()
-    # Throttle GitHub API commits to once every 5 minutes max to avoid spamming GitHub & Render
-    if now - _last_github_sync_time < 300:
-        return
-    try:
-        seed_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jobs_seed.json")
-        if not os.path.exists(seed_file):
-            return
-        with open(seed_file, "r", encoding="utf-8") as f:
-            content_str = f.read()
+    """
+    ❌ DISABLED — ROOT CAUSE OF 5.76 GB BANDWIDTH EXHAUSTION.
 
-        url = f"https://api.github.com/repos/{repo}/contents/jobs_seed.json"
-        headers = {
-            "Authorization": f"token {token}",
-            "Accept": "application/vnd.github.v3+json"
-        }
-        resp = requests.get(url, headers=headers, timeout=10)
-        sha = resp.json().get("sha") if resp.status_code == 200 else None
+    This function was uploading jobs_seed.json (10.6 MB → 14 MB base64) to
+    GitHub API via Render's outbound connection on EVERY job upsert and scrape.
 
-        content_b64 = base64.b64encode(content_str.encode("utf-8")).decode("utf-8")
-        payload = {
-            "message": "Auto-sync jobs_seed.json [skip ci] [skip render]",
-            "content": content_b64,
-            "branch": "main"
-        }
-        if sha:
-            payload["sha"] = sha
+    Timeline of damage:
+      - Scraper runs every 30 min = 48x/day
+      - Each scrape inserts 20-50 new jobs → upsert_job() called 50 times
+      - Each upsert_job() called export_seed_json() → sync_github_seed()
+      - 5-min throttle helps but burst of 50 calls still fires multiple uploads
+      - ~40 MB egress per scrape × 48/day = ~1.9 GB/day → quota gone in days
 
-        r = requests.put(url, headers=headers, json=payload, timeout=15)
-        if r.status_code in (200, 201):
-            _last_github_sync_time = now
-    except Exception:
-        pass
+    FIX: jobs.db is already tracked in git and auto-seeded on startup via
+    seed_from_json(). GitHub sync of seed JSON is completely unnecessary.
+    """
+    pass  # DISABLED — do NOT re-enable. See comment above.
 
 
 def export_seed_json():
-    """Dump all active jobs into jobs_seed.json to ensure persistence across Render deployments."""
+    """Dump all active jobs into jobs_seed.json (local disk only, no network upload)."""
     import os, json
     seed_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jobs_seed.json")
     try:
@@ -449,7 +424,7 @@ def export_seed_json():
             if jobs_data:
                 with open(seed_file, "w", encoding="utf-8") as f:
                     json.dump(jobs_data, f, ensure_ascii=False, indent=2)
-        sync_github_seed()
+        # sync_github_seed() intentionally NOT called — was burning 5+ GB/month in egress
     except Exception:
         pass
 
@@ -720,8 +695,9 @@ def upsert_job(job: dict) -> bool:
             ),
         )
         is_new_insert = (res.rowcount > 0)
-    if is_new_insert:
-        export_seed_json()
+    # ✅ BANDWIDTH FIX: Removed per-job export_seed_json() call.
+    # Old: every upsert → export_seed_json() → sync_github_seed() → 14MB upload
+    # New: seed export happens only at end of full scrape (in app.py _run_scrape_bg)
     return is_new_insert
 
 
@@ -758,7 +734,7 @@ def update_detail(slug: str, description_md: str, extra: dict):
         if row:
             is_ff = int(determine_fresher_eligibility(row["experience_raw"], row["title"], description_md))
             conn.execute("UPDATE jobs SET is_fresher = ?, is_fresher_friendly = ? WHERE slug = ?", (is_ff, is_ff, slug))
-    export_seed_json()
+    # ✅ BANDWIDTH FIX: Removed export_seed_json() — was triggering 14MB upload per detail scrape
 
 
 def purge_expired(days: int = 180):
