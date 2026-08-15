@@ -31,7 +31,7 @@ import androidx.core.app.NotificationCompat;
 
 public class MainActivity extends Activity {
 
-    private static final String TARGET_URL = "https://pharmabharat-scraper-y2g3.onrender.com";
+    private static final String TARGET_URL = "https://pharmabharat-scraper.onrender.com";
 
     private WebView webView;
     private ProgressBar progressBar;
@@ -80,7 +80,7 @@ public class MainActivity extends Activity {
             @Override
             public void run() {
                 try {
-                    java.net.URL bcUrl = new java.net.URL("https://pharmabharat-scraper-y2g3.onrender.com/api/push-broadcast");
+                    java.net.URL bcUrl = new java.net.URL("https://pharmabharat-scraper.onrender.com/api/push-broadcast");
                     java.net.HttpURLConnection bcConn = (java.net.HttpURLConnection) bcUrl.openConnection();
                     bcConn.setRequestMethod("GET");
                     bcConn.setConnectTimeout(6000);
@@ -238,7 +238,7 @@ public class MainActivity extends Activity {
                 }
                 
                 // Keep internal app navigation within WebView
-                if (url.contains("pharmabharat-scraper-y2g3.onrender.com") || url.contains("pharmabharat.com")) {
+                if (url.contains("pharmabharat-scraper.onrender.com") || url.contains("pharmabharat.com")) {
                     return false;
                 }
 

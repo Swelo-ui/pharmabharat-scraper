@@ -6,7 +6,7 @@
 [![SQLite](https://img.shields.io/badge/SQLite3-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
 [![Android](https://img.shields.io/badge/Android%20App-Native%20Java-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com/)
 [![Lucide Icons](https://img.shields.io/badge/UI%20Icons-Lucide%20SVG-FF6B6B?style=for-the-badge)](https://lucide.dev/)
-[![Live App](https://img.shields.io/badge/Web%20App-Live%20Demo-00C853?style=for-the-badge&logo=render&logoColor=white)](https://pharmabharat-scraper-y2g3.onrender.com)
+[![Live App](https://img.shields.io/badge/Web%20App-Live%20Demo-00C853?style=for-the-badge&logo=render&logoColor=white)](https://pharmabharat-scraper.onrender.com)
 
 ---
 
@@ -23,7 +23,7 @@ The platform provides a responsive **Single-Page Web Application**, a **Flask RE
 Directly download and install the latest compiled APK on your Android device:
 
 - 🚀 **[Download Pharmly.apk (GitHub Direct - v3.6.0)](https://github.com/Swelo-ui/pharmabharat-scraper/raw/main/Pharmly.apk)**
-- 🌐 **[Download via Live Web Server](https://pharmabharat-scraper-y2g3.onrender.com/Pharmly.apk)**
+- 🌐 **[Download via Live Web Server](https://pharmabharat-scraper.onrender.com/Pharmly.apk)**
 
 ---
 
