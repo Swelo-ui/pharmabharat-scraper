@@ -393,28 +393,94 @@ def init_db():
     sanitize_fresher_tags()
 
 
+# ─── GitHub Seed Sync (Bandwidth-Safe) ────────────────────────────────────────
+# Throttle: 1 upload per 6 hours max = 4 uploads/day
+# Bandwidth: 14 MB × 4 × 30 days = 1.68 GB/month  ✅ (safe under 4 GB limit)
+#
+# WHY 6 HOURS (not 5 min like before):
+#   Old: 5-min throttle → up to 150 uploads/day → 2.1 GB/DAY → suspended in 3 days
+#   New: 6-hr throttle  → max 4 uploads/day     → 1.68 GB/MONTH → safe ✅
+#
+# CALL CHAIN (fixed):
+#   scrape_end (app.py) → export_seed_json() → sync_github_seed()
+#   upsert_job()        → ❌ NO longer calls export_seed_json() (removed)
+#   update_detail()     → ❌ NO longer calls export_seed_json() (removed)
+_last_github_sync_time = 0.0
+
+
 def sync_github_seed():
     """
-    ❌ DISABLED — ROOT CAUSE OF 5.76 GB BANDWIDTH EXHAUSTION.
+    Upload jobs_seed.json to GitHub repo once every 6 hours (max 4x/day).
 
-    This function was uploading jobs_seed.json (10.6 MB → 14 MB base64) to
-    GitHub API via Render's outbound connection on EVERY job upsert and scrape.
+    Purpose: Persist new scraped jobs across Render redeploys.
+    Without this: any redeploy wipes jobs scraped since last git push.
 
-    Timeline of damage:
-      - Scraper runs every 30 min = 48x/day
-      - Each scrape inserts 20-50 new jobs → upsert_job() called 50 times
-      - Each upsert_job() called export_seed_json() → sync_github_seed()
-      - 5-min throttle helps but burst of 50 calls still fires multiple uploads
-      - ~40 MB egress per scrape × 48/day = ~1.9 GB/day → quota gone in days
-
-    FIX: jobs.db is already tracked in git and auto-seeded on startup via
-    seed_from_json(). GitHub sync of seed JSON is completely unnecessary.
+    Bandwidth budget:
+        14 MB per upload × 4 per day × 30 days = 1.68 GB/month
+        Leaves ~2.3 GB/month for API traffic (total free = 5 GB)
     """
-    pass  # DISABLED — do NOT re-enable. See comment above.
+    global _last_github_sync_time
+    import os, json, base64, requests, time
+
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if not token:
+        return  # No token set → skip silently (local dev or token not configured)
+
+    now = time.time()
+    THROTTLE_SECONDS = 6 * 3600  # 6 hours = max 4 uploads/day
+    if now - _last_github_sync_time < THROTTLE_SECONDS:
+        remaining = int((THROTTLE_SECONDS - (now - _last_github_sync_time)) / 60)
+        log.info(f"sync_github_seed: throttled, next upload in ~{remaining} min")
+        return
+
+    repo = os.environ.get("GITHUB_REPOSITORY") or "Swelo-ui/pharmabharat-scraper"
+    seed_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jobs_seed.json")
+    if not os.path.exists(seed_file):
+        return
+
+    try:
+        with open(seed_file, "r", encoding="utf-8") as f:
+            content_str = f.read()
+
+        api_url = f"https://api.github.com/repos/{repo}/contents/jobs_seed.json"
+        headers = {
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "pharmabharat-seed-sync"
+        }
+
+        # GET current SHA (needed for update, not insert)
+        resp = requests.get(api_url, headers=headers, timeout=10)
+        sha = resp.json().get("sha") if resp.status_code == 200 else None
+
+        content_b64 = base64.b64encode(content_str.encode("utf-8")).decode("utf-8")
+        payload = {
+            "message": "chore: auto-sync jobs_seed.json [skip ci] [skip render]",
+            "content": content_b64,
+            "branch": "main"
+        }
+        if sha:
+            payload["sha"] = sha
+
+        r = requests.put(api_url, headers=headers, json=payload, timeout=20)
+        if r.status_code in (200, 201):
+            _last_github_sync_time = now
+            log.info("sync_github_seed: ✅ Uploaded jobs_seed.json to GitHub (%.1f MB)", len(content_str) / 1_000_000)
+        else:
+            log.warning("sync_github_seed: GitHub API returned %s: %s", r.status_code, r.text[:200])
+    except Exception as e:
+        log.warning("sync_github_seed: failed — %s", e)
 
 
 def export_seed_json():
-    """Dump all active jobs into jobs_seed.json (local disk only, no network upload)."""
+    """
+    Write all active jobs to jobs_seed.json on local disk.
+    Then attempt GitHub sync (max 4x/day via 6-hr throttle inside sync_github_seed).
+
+    Called ONLY from:
+      - _run_scrape_bg() in app.py (end of each full scrape cycle)
+    NOT called from upsert_job() or update_detail() — that caused the bandwidth disaster.
+    """
     import os, json
     seed_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jobs_seed.json")
     try:
@@ -424,9 +490,10 @@ def export_seed_json():
             if jobs_data:
                 with open(seed_file, "w", encoding="utf-8") as f:
                     json.dump(jobs_data, f, ensure_ascii=False, indent=2)
-        # sync_github_seed() intentionally NOT called — was burning 5+ GB/month in egress
-    except Exception:
-        pass
+        # Sync to GitHub — 6-hr throttle inside prevents bandwidth abuse
+        sync_github_seed()
+    except Exception as e:
+        log.warning("export_seed_json failed: %s", e)
 
 
 def seed_from_json():
