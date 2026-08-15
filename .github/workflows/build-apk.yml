@@ -1,0 +1,96 @@
+name: 📱 Build & Release APK
+
+# Automatically builds a signed APK whenever:
+# - Code is pushed to main branch (AND Java/Android files changed)
+# - Manually triggered from GitHub Actions tab
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android-app/app/src/**'
+      - 'android-app/app/build.gradle'
+      - '.github/workflows/build-apk.yml'
+  workflow_dispatch:   # Manual trigger anytime
+
+jobs:
+  build:
+    name: Build Signed APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      # ── 1. Checkout code ──────────────────────────────────────────────
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Java 17 setup ──────────────────────────────────────────────
+      - name: ☕ Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      # ── 3. Android SDK setup ──────────────────────────────────────────
+      - name: 🤖 Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 📦 Install Build Tools & Platform
+        run: |
+          sdkmanager --install "platforms;android-34" "build-tools;34.0.0" --sdk_root=$ANDROID_SDK_ROOT
+          echo "SDK setup complete"
+
+      # ── 4. Make gradlew executable ────────────────────────────────────
+      - name: 🔧 Setup Gradle wrapper
+        run: |
+          cd android-app
+          # Create gradlew if missing
+          if [ ! -f gradlew ]; then
+            gradle wrapper --gradle-version 8.4 || true
+          fi
+          chmod +x gradlew 2>/dev/null || true
+
+      # ── 5. Build Release APK ──────────────────────────────────────────
+      - name: 🔨 Build Release APK
+        run: |
+          cd android-app
+          ./gradlew assembleRelease --no-daemon --stacktrace
+        env:
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+
+      # ── 6. Find and rename APK ────────────────────────────────────────
+      - name: 📋 Locate and rename APK
+        run: |
+          APK_PATH=$(find android-app -name "*.apk" -path "*/release/*" | head -1)
+          echo "Found APK: $APK_PATH"
+          cp "$APK_PATH" Pharmly.apk
+          ls -lh Pharmly.apk
+
+      # ── 7. Upload as artifact (always available) ──────────────────────
+      - name: 📤 Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pharmly-v3.6.0
+          path: Pharmly.apk
+          retention-days: 90
+
+      # ── 8. Create/Update GitHub Release ───────────────────────────────
+      - name: 🚀 Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v3.6.0
+          name: "Pharmly v3.6.0"
+          body: |
+            ## 📱 Pharmly App v3.6.0
+
+            ### Install
+            Download `Pharmly.apk` below and install on your Android device.
+
+            ### Changelog
+            - ⚡ Native Doze-Bypass Engine — 2-Min Background Notification
+            - 🔔 Instant Startup & Resume Push Check
+            - 🎯 4-Field Smart Deduplication
+            - 🌐 Updated server endpoint
+          files: Pharmly.apk
+          make_latest: true
+          token: ${{ secrets.GITHUB_TOKEN }}

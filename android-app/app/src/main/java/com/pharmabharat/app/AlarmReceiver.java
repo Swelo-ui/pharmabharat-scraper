@@ -42,7 +42,7 @@ public class AlarmReceiver extends BroadcastReceiver {
             @Override
             public void run() {
                 try {
-                    URL url = new URL("https://pharmabharat-scraper.onrender.com/api/jobs?per_page=5");
+                    URL url = new URL("https://pharmabharat-scraper-dic1.onrender.com/api/jobs?per_page=5");
                     HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                     conn.setRequestMethod("GET");
                     conn.setConnectTimeout(12000);
@@ -96,7 +96,7 @@ public class AlarmReceiver extends BroadcastReceiver {
 
                     // ─── Background App Version Update Check ───
                     try {
-                        URL verUrl = new URL("https://pharmabharat-scraper.onrender.com/api/app-version");
+                        URL verUrl = new URL("https://pharmabharat-scraper-dic1.onrender.com/api/app-version");
                         HttpURLConnection verConn = (HttpURLConnection) verUrl.openConnection();
                         verConn.setRequestMethod("GET");
                         verConn.setConnectTimeout(8000);
@@ -130,7 +130,7 @@ public class AlarmReceiver extends BroadcastReceiver {
 
                     // ─── Broadcast Custom Push Notification Check ───
                     try {
-                        URL bcUrl = new URL("https://pharmabharat-scraper.onrender.com/api/push-broadcast");
+                        URL bcUrl = new URL("https://pharmabharat-scraper-dic1.onrender.com/api/push-broadcast");
                         HttpURLConnection bcConn = (HttpURLConnection) bcUrl.openConnection();
                         bcConn.setRequestMethod("GET");
                         bcConn.setConnectTimeout(8000);

@@ -21,7 +21,7 @@ public class PharmaJobService extends JobService {
             @Override
             public void run() {
                 try {
-                    URL url = new URL("https://pharmabharat-scraper.onrender.com/api/jobs?per_page=5");
+                    URL url = new URL("https://pharmabharat-scraper-dic1.onrender.com/api/jobs?per_page=5");
                     HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                     conn.setRequestMethod("GET");
                     conn.setConnectTimeout(10000);
