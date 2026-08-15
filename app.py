@@ -99,10 +99,11 @@ def api_telegram_scrape():
 
 @app.route("/api/app-version")
 def api_app_version():
-    return jsonify({
+    # ✅ BANDWIDTH FIX: Use GitHub Releases URL (CDN-served), not raw/main (counts as Render egress via Android app).
+    resp = jsonify({
         "version_code": 10,
         "version_name": "3.6.0",
-        "download_url": "https://github.com/Swelo-ui/pharmabharat-scraper/raw/main/Pharmly.apk",
+        "download_url": "https://github.com/Swelo-ui/pharmabharat-scraper/releases/latest/download/Pharmly.apk",
         "changelog": [
             "⚡ Official Version 3.6.0 Update!",
             "Native Doze-Bypass Engine — 2-Min Background Closed App Notification",
@@ -110,6 +111,8 @@ def api_app_version():
             "4-Field Verified Smart Deduplication (Brand, Role, Loc, Exp)"
         ]
     })
+    resp.headers["Cache-Control"] = "public, max-age=3600"  # Cache for 1 hour
+    return resp
 
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
@@ -122,11 +125,17 @@ def index():
 @app.route("/download/apk")
 @app.route("/PharmlyPro.apk")
 @app.route("/PharmaBharatPro.apk")
+@app.route("/Pharmly.apk")
+@app.route("/PharmaBharat.apk")
 def download_apk():
-    from flask import send_from_directory
-    apk_dir = os.path.dirname(os.path.abspath(__file__))
-    file_to_send = "PharmlyPro.apk" if os.path.exists(os.path.join(apk_dir, "PharmlyPro.apk")) else "PharmaBharatPro.apk"
-    return send_from_directory(apk_dir, file_to_send, as_attachment=True)
+    # ✅ BANDWIDTH FIX: Redirect to GitHub CDN instead of serving from Render.
+    # Serving 5.4MB APK directly from Render consumes massive bandwidth quota.
+    # GitHub raw serves it for free via their CDN.
+    from flask import redirect
+    return redirect(
+        "https://github.com/Swelo-ui/pharmabharat-scraper/releases/latest/download/Pharmly.apk",
+        code=302
+    )
 
 
 @app.route("/api/jobs")

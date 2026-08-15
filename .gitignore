@@ -9,3 +9,14 @@ ENV/
 .venv
 *.log
 .DS_Store
+
+# ✅ BANDWIDTH FIX: APK files are now served from GitHub Releases CDN.
+# Do NOT push APKs to git — they bloat the repo AND if served from Render,
+# each 5.4MB download burns your free 5GB bandwidth quota very fast.
+*.apk
+*.idsig
+
+# Android build artifacts — not needed on Render
+android-app/build_tmp/
+android-app/.gradle/
+android-app/build/
