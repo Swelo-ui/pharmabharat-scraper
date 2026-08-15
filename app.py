@@ -414,7 +414,7 @@ _scheduler_lock = threading.Lock()
 
 
 def _background_scheduler_loop():
-    """Runs in background: initial delay 10s, then scrapes every 30 mins."""
+    """Runs in background: initial delay 10s, then scrapes every 1 hour (bandwidth-optimized)."""
     time.sleep(10)
     while True:
         try:
@@ -422,7 +422,7 @@ def _background_scheduler_loop():
                 _run_scrape_bg(pages=_adaptive_pages)
         except Exception:
             pass
-        time.sleep(1800)  # 30 minutes
+        time.sleep(3600)  # 1 hour (24 times/day)
 
 
 def start_background_scheduler():

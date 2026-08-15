@@ -426,7 +426,7 @@ def sync_github_seed():
         return  # No token set → skip silently (local dev or token not configured)
 
     now = time.time()
-    THROTTLE_SECONDS = 6 * 3600  # 6 hours = max 4 uploads/day
+    THROTTLE_SECONDS = 12 * 3600  # 12 hours = max 2 uploads/day (bandwidth-optimized)
     if now - _last_github_sync_time < THROTTLE_SECONDS:
         remaining = int((THROTTLE_SECONDS - (now - _last_github_sync_time)) / 60)
         log.info(f"sync_github_seed: throttled, next upload in ~{remaining} min")
