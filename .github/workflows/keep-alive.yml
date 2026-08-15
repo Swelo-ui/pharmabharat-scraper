@@ -1,0 +1,43 @@
+name: 🔥 Keep Render Alive
+
+# Har 5 minute mein Render service ko ping karo taaki free tier spin-down na ho.
+# Render free instance 15 min inactivity ke baad so jaata hai.
+# GitHub Actions se continuous ping = always awake = UptimeRobot green ✅
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'   # Har 5 minute (GitHub minimum = 5 min)
+  workflow_dispatch:         # Manual trigger bhi kar sako dashboard se
+
+jobs:
+  ping:
+    name: Ping Render Service
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: 🏓 Ping /api/stats (lightweight endpoint)
+        run: |
+          echo "Pinging Render at $(date)..."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 30 \
+            --retry 2 \
+            --retry-delay 5 \
+            "https://pharmabharat-scraper-y2g3.onrender.com/api/stats")
+          echo "HTTP Status: $STATUS"
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ Render is UP and responding!"
+          elif [ "$STATUS" = "000" ]; then
+            echo "⚠️ Render is waking up (timeout/no response) - will be ready soon"
+            exit 0
+          else
+            echo "❌ Unexpected status: $STATUS"
+            exit 1
+          fi
+
+      - name: 💊 Warm up scraper status too
+        run: |
+          curl -s -o /dev/null \
+            --max-time 15 \
+            "https://pharmabharat-scraper-y2g3.onrender.com/api/scrape/status" || true
+          echo "Warmup done."
