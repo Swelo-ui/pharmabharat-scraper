@@ -8,9 +8,11 @@ sab kuch ek file (jobs.db) mein store hota hai.
 import sqlite3
 import time
 import re
+import logging
 from datetime import datetime
 from contextlib import contextmanager
 
+log = logging.getLogger("db")
 DB_PATH = "jobs.db"
 
 SCHEMA = """
