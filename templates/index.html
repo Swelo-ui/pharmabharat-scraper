@@ -1968,6 +1968,11 @@
       <button id="btn-start-app-update" onclick="triggerInAppUpdate()" style="width:100%; padding:14px; border-radius:14px; background:linear-gradient(135deg, var(--primary), #0D9488); color:#FFF; border:none; font-weight:800; font-size:0.95rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; box-shadow:0 6px 20px var(--primary-glow);">
         <i data-lucide="download-cloud" style="width:20px;height:20px;"></i> Update Now (1-Tap Download)
       </button>
+      <div id="update-fallback-container" style="margin-top:12px; text-align:center;">
+        <a href="https://github.com/Swelo-ui/pharmabharat-scraper/releases/latest/download/Pharmly.apk" onclick="handleFallbackDownload(event)" style="font-size:0.82rem; color:var(--primary); font-weight:700; text-decoration:underline; cursor:pointer; display:inline-flex; align-items:center; gap:5px;">
+          <i data-lucide="external-link" style="width:14px;height:14px;"></i> Direct Install (Browser se Download & Install karein)
+        </a>
+      </div>
     </div>
   </div>
 </div>
@@ -2926,7 +2931,18 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // ── In-App One-Tap Auto Update System ──
-let appUpdateDownloadUrl = "https://github.com/Swelo-ui/pharmabharat-scraper/raw/main/Pharmly.apk";
+let appUpdateDownloadUrl = "https://github.com/Swelo-ui/pharmabharat-scraper/releases/latest/download/Pharmly.apk";
+
+function handleFallbackDownload(event) {
+  if (event) event.preventDefault();
+  const url = appUpdateDownloadUrl || "https://github.com/Swelo-ui/pharmabharat-scraper/releases/latest/download/Pharmly.apk";
+  showToast("Opening Pharmly v3.7.0 in browser...");
+  if (window.AndroidNative && window.AndroidNative.downloadFile) {
+    window.AndroidNative.downloadFile(url, "Pharmly.apk");
+  } else {
+    window.location.href = url;
+  }
+}
 
 function checkAppUpdate() {
   fetch('/api/app-version')
@@ -2976,10 +2992,30 @@ function triggerInAppUpdate() {
   const btn = document.getElementById("btn-start-app-update");
   const pBox = document.getElementById("update-progress-box");
   
+  let localVersionCode = 1;
+  if (window.AndroidNative && window.AndroidNative.getAppVersionCode) {
+    try {
+      localVersionCode = window.AndroidNative.getAppVersionCode();
+    } catch(e) {}
+  }
+
+  // If already at 100% download complete state:
   if (isApkDownloadFinished) {
+    // If running in older v3.6.0 binary (versionCode < 11), native promptInstallApk fails because
+    // the old binary lacked FileProvider in its AndroidManifest. Fallback to browser direct install!
+    if (localVersionCode < 11) {
+      handleFallbackDownload();
+      return;
+    }
     if (window.AndroidNative && window.AndroidNative.promptInstallApk) {
       window.AndroidNative.promptInstallApk();
     }
+    return;
+  }
+
+  // If starting update from v3.6.0 binary (versionCode < 11):
+  if (localVersionCode < 11) {
+    handleFallbackDownload();
     return;
   }
 
@@ -2993,8 +3029,7 @@ function triggerInAppUpdate() {
   if (window.AndroidNative && window.AndroidNative.downloadAndInstallApk) {
     window.AndroidNative.downloadAndInstallApk(appUpdateDownloadUrl);
   } else {
-    window.open(appUpdateDownloadUrl, "_blank");
-    showToast("Downloading Pharmly APK update...");
+    handleFallbackDownload();
   }
 }
 
@@ -3013,6 +3048,13 @@ window.onApkDownloadProgress = function(percent) {
 window.onApkDownloadComplete = function() {
   isApkDownloadFinished = true;
   
+  let localVersionCode = 1;
+  if (window.AndroidNative && window.AndroidNative.getAppVersionCode) {
+    try {
+      localVersionCode = window.AndroidNative.getAppVersionCode();
+    } catch(e) {}
+  }
+
   const fill = document.getElementById("update-progress-fill");
   const txt = document.getElementById("update-percent-text");
   const statusTxt = document.getElementById("update-status-text");
@@ -3029,7 +3071,14 @@ window.onApkDownloadComplete = function() {
     if (window.lucide) lucide.createIcons();
   }
 
-  showToast("Download Complete! Tap Install Now to update.");
+  if (localVersionCode < 11) {
+    showToast("Download ready! Opening browser to complete install...");
+    setTimeout(() => {
+      handleFallbackDownload();
+    }, 1000);
+  } else {
+    showToast("Download Complete! Tap Install Now to update.");
+  }
 };
 
 function closeAppUpdateModal() {
