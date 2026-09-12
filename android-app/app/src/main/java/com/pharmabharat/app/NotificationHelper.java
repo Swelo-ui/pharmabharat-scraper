@@ -16,6 +16,10 @@ public class NotificationHelper {
     public static final String CHANNEL_NAME = "Pharmly Job Alerts";
 
     public static void showJobNotification(Context context, String title, String message) {
+        showJobNotification(context, title, message, null);
+    }
+
+    public static void showJobNotification(Context context, String title, String message, String targetUrl) {
         try {
             NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
 
@@ -34,9 +38,15 @@ public class NotificationHelper {
 
             Intent intent = new Intent(context, MainActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            if (targetUrl != null && !targetUrl.trim().isEmpty()) {
+                intent.putExtra("target_url", targetUrl.trim());
+                intent.setData(android.net.Uri.parse("pharmly://job/" + System.currentTimeMillis()));
+            }
+
+            int reqCode = (int) (System.currentTimeMillis() % 100000);
             PendingIntent pendingIntent = PendingIntent.getActivity(
                     context,
-                    (int) System.currentTimeMillis(),
+                    reqCode,
                     intent,
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
             );
@@ -57,7 +67,7 @@ public class NotificationHelper {
                     .setPriority(NotificationCompat.PRIORITY_HIGH);
 
             if (notificationManager != null) {
-                notificationManager.notify((int) (System.currentTimeMillis() % 100000), builder.build());
+                notificationManager.notify(reqCode, builder.build());
             }
         } catch (Exception e) {
             e.printStackTrace();

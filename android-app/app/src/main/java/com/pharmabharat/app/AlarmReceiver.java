@@ -20,19 +20,19 @@ public class AlarmReceiver extends BroadcastReceiver {
     public static final int ALARM_REQ_CODE = 8001;
     private static final String PREFS_NAME = "PharmlyPrefs";
     private static final String KEY_LAST_JOB_ID = "last_job_id";
-    private static final long INTERVAL_MS = 2 * 60 * 1000; // 2 minutes ultra-fast Doze-bypass background check
+    private static final long INTERVAL_MS = 15 * 60 * 1000; // 15-minute battery-safe background interval
 
     @Override
     public void onReceive(final Context context, Intent intent) {
-        // Reschedule next alarm immediately so polling continues indefinitely in background
+        // Reschedule next alarm
         scheduleAlarm(context);
 
-        // Acquire temporary wake lock to complete background check even in Doze mode
+        // Acquire temporary wake lock to complete background check
         PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
         final PowerManager.WakeLock wakeLock = pm != null ? pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Pharmly:NotifWakeLock") : null;
         if (wakeLock != null) {
             try {
-                wakeLock.acquire(30000); // 30s timeout safety
+                wakeLock.acquire(45000); // 45s timeout safety for Render cold-starts
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -45,8 +45,8 @@ public class AlarmReceiver extends BroadcastReceiver {
                     URL url = new URL("https://pharmabharat-scraper-dic1.onrender.com/api/jobs?per_page=5");
                     HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                     conn.setRequestMethod("GET");
-                    conn.setConnectTimeout(12000);
-                    conn.setReadTimeout(12000);
+                    conn.setConnectTimeout(35000);
+                    conn.setReadTimeout(35000);
 
                     if (conn.getResponseCode() == 200) {
                         BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
@@ -89,7 +89,7 @@ public class AlarmReceiver extends BroadcastReceiver {
                                     sbMsg.append(" (").append(latestLoc).append(")");
                                 }
                                 String notifMsg = sbMsg.toString();
-                                NotificationHelper.showJobNotification(context, notifTitle, notifMsg);
+                                NotificationHelper.showJobNotification(context, notifTitle, notifMsg, "?job=" + latestSlug);
                             }
                         }
                     }
@@ -99,8 +99,8 @@ public class AlarmReceiver extends BroadcastReceiver {
                         URL verUrl = new URL("https://pharmabharat-scraper-dic1.onrender.com/api/app-version");
                         HttpURLConnection verConn = (HttpURLConnection) verUrl.openConnection();
                         verConn.setRequestMethod("GET");
-                        verConn.setConnectTimeout(8000);
-                        verConn.setReadTimeout(8000);
+                        verConn.setConnectTimeout(30000);
+                        verConn.setReadTimeout(30000);
                         if (verConn.getResponseCode() == 200) {
                             BufferedReader r = new BufferedReader(new InputStreamReader(verConn.getInputStream()));
                             StringBuilder sbVer = new StringBuilder();
@@ -110,7 +110,7 @@ public class AlarmReceiver extends BroadcastReceiver {
 
                             JSONObject vJson = new JSONObject(sbVer.toString());
                             int serverCode = vJson.optInt("version_code", 1);
-                            String verName = vJson.optString("version_name", "3.2");
+                            String verName = vJson.optString("version_name", "3.7.0");
 
                             SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
                             int lastNotifiedCode = prefs.getInt("last_notified_ver_code", 0);
@@ -123,7 +123,7 @@ public class AlarmReceiver extends BroadcastReceiver {
                                 prefs.edit().putInt("last_notified_ver_code", serverCode).apply();
                                 String notifTitle = "Pharmly Update Available (v" + verName + ")";
                                 String notifMsg = "A new version of Pharmly is ready. Tap to install now!";
-                                NotificationHelper.showJobNotification(context, notifTitle, notifMsg);
+                                NotificationHelper.showJobNotification(context, notifTitle, notifMsg, "update");
                             }
                         }
                     } catch (Exception ignored) {}
@@ -133,8 +133,8 @@ public class AlarmReceiver extends BroadcastReceiver {
                         URL bcUrl = new URL("https://pharmabharat-scraper-dic1.onrender.com/api/push-broadcast");
                         HttpURLConnection bcConn = (HttpURLConnection) bcUrl.openConnection();
                         bcConn.setRequestMethod("GET");
-                        bcConn.setConnectTimeout(8000);
-                        bcConn.setReadTimeout(8000);
+                        bcConn.setConnectTimeout(30000);
+                        bcConn.setReadTimeout(30000);
                         if (bcConn.getResponseCode() == 200) {
                             BufferedReader r = new BufferedReader(new InputStreamReader(bcConn.getInputStream()));
                             StringBuilder sbBc = new StringBuilder();
@@ -149,13 +149,14 @@ public class AlarmReceiver extends BroadcastReceiver {
                             String bcId = bcJson.optString("id", "");
                             String bcTitle = bcJson.optString("title", "");
                             String bcMsg = bcJson.optString("message", "");
+                            String bcUrlTarget = bcJson.optString("url", "");
 
                             SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
                             String lastSavedBcId = prefs.getString("last_broadcast_notif_id", "");
 
                             if (!bcId.isEmpty() && !bcId.equals(lastSavedBcId) && !bcMsg.isEmpty()) {
                                 prefs.edit().putString("last_broadcast_notif_id", bcId).apply();
-                                NotificationHelper.showJobNotification(context, bcTitle, bcMsg);
+                                NotificationHelper.showJobNotification(context, bcTitle, bcMsg, bcUrlTarget);
                             }
                         }
                     } catch (Exception ignored) {}
@@ -188,10 +189,15 @@ public class AlarmReceiver extends BroadcastReceiver {
                 );
 
                 long triggerAt = System.currentTimeMillis() + INTERVAL_MS;
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
-                } else {
-                    alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
+                    } else {
+                        alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
+                    }
+                } catch (SecurityException se) {
+                    // Fallback for Android 12+ if exact alarm cannot be scheduled
+                    alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
                 }
             }
         } catch (Exception e) {

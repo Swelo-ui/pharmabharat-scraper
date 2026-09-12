@@ -13,8 +13,17 @@ public class SplashActivity extends AppCompatActivity {
         setContentView(R.layout.activity_splash);
 
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            startActivity(new Intent(SplashActivity.this, MainActivity.class));
-            finish();
-        }, 1800);
+            if (!isFinishing() && !isDestroyed()) {
+                Intent mainIntent = new Intent(SplashActivity.this, MainActivity.class);
+                if (getIntent() != null && getIntent().getExtras() != null) {
+                    mainIntent.putExtras(getIntent().getExtras());
+                }
+                if (getIntent() != null && getIntent().getData() != null) {
+                    mainIntent.setData(getIntent().getData());
+                }
+                startActivity(mainIntent);
+                finish();
+            }
+        }, 1200);
     }
 }

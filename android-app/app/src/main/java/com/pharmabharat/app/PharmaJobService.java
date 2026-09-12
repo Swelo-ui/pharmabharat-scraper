@@ -24,8 +24,8 @@ public class PharmaJobService extends JobService {
                     URL url = new URL("https://pharmabharat-scraper-dic1.onrender.com/api/jobs?per_page=5");
                     HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                     conn.setRequestMethod("GET");
-                    conn.setConnectTimeout(10000);
-                    conn.setReadTimeout(10000);
+                    conn.setConnectTimeout(35000);
+                    conn.setReadTimeout(35000);
 
                     if (conn.getResponseCode() == 200) {
                         BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
@@ -68,7 +68,7 @@ public class PharmaJobService extends JobService {
                                     sbMsg.append(" (").append(latestLoc).append(")");
                                 }
                                 String notifMsg = sbMsg.toString();
-                                NotificationHelper.showJobNotification(getApplicationContext(), notifTitle, notifMsg);
+                                NotificationHelper.showJobNotification(getApplicationContext(), notifTitle, notifMsg, "?job=" + latestSlug);
                             }
                         }
                     }

@@ -58,6 +58,7 @@ public class MainActivity extends Activity {
         });
 
         loadApp();
+        handleIncomingIntent(getIntent());
         BootReceiver.scheduleJob(this);
         checkInstantBroadcastNotification();
 
@@ -67,6 +68,53 @@ public class MainActivity extends Activity {
                 requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 101);
             }
         }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIncomingIntent(intent);
+    }
+
+    private void handleIncomingIntent(Intent intent) {
+        if (intent == null) return;
+        String targetUrl = intent.getStringExtra("target_url");
+        if (targetUrl != null && !targetUrl.trim().isEmpty()) {
+            targetUrl = targetUrl.trim();
+            if ("update".equalsIgnoreCase(targetUrl)) {
+                if (webView != null) {
+                    webView.evaluateJavascript("if(typeof triggerInAppUpdate === 'function') triggerInAppUpdate(); else if(typeof checkAppUpdate === 'function') checkAppUpdate();", null);
+                }
+            } else {
+                String fullTarget;
+                if (targetUrl.startsWith("http://") || targetUrl.startsWith("https://")) {
+                    fullTarget = targetUrl;
+                } else if (targetUrl.startsWith("?")) {
+                    fullTarget = TARGET_URL + "/" + targetUrl;
+                } else if (targetUrl.startsWith("/")) {
+                    fullTarget = TARGET_URL + targetUrl;
+                } else {
+                    fullTarget = TARGET_URL + "/?job=" + targetUrl;
+                }
+                if (webView != null) {
+                    webView.loadUrl(fullTarget);
+                }
+            }
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (webView != null) {
+            webView.loadUrl("about:blank");
+            webView.stopLoading();
+            webView.setWebChromeClient(null);
+            webView.setWebViewClient(null);
+            webView.destroy();
+            webView = null;
+        }
+        super.onDestroy();
     }
 
     @Override
@@ -83,8 +131,8 @@ public class MainActivity extends Activity {
                     java.net.URL bcUrl = new java.net.URL("https://pharmabharat-scraper-dic1.onrender.com/api/push-broadcast");
                     java.net.HttpURLConnection bcConn = (java.net.HttpURLConnection) bcUrl.openConnection();
                     bcConn.setRequestMethod("GET");
-                    bcConn.setConnectTimeout(6000);
-                    bcConn.setReadTimeout(6000);
+                    bcConn.setConnectTimeout(15000);
+                    bcConn.setReadTimeout(15000);
                     if (bcConn.getResponseCode() == 200) {
                         java.io.BufferedReader r = new java.io.BufferedReader(new java.io.InputStreamReader(bcConn.getInputStream()));
                         StringBuilder sbBc = new StringBuilder();
@@ -99,13 +147,14 @@ public class MainActivity extends Activity {
                         final String bcId = bcJson.optString("id", "");
                         final String bcTitle = bcJson.optString("title", "");
                         final String bcMsg = bcJson.optString("message", "");
+                        final String bcTarget = bcJson.optString("url", "");
 
                         SharedPreferences prefs = getSharedPreferences("PharmlyPrefs", Context.MODE_PRIVATE);
                         String lastSavedBcId = prefs.getString("last_broadcast_notif_id", "");
 
                         if (!bcId.isEmpty() && !bcId.equals(lastSavedBcId) && !bcMsg.isEmpty()) {
                             prefs.edit().putString("last_broadcast_notif_id", bcId).apply();
-                            NotificationHelper.showJobNotification(MainActivity.this, bcTitle, bcMsg);
+                            NotificationHelper.showJobNotification(MainActivity.this, bcTitle, bcMsg, bcTarget);
                         }
                     }
                 } catch (Exception ignored) {}
@@ -118,6 +167,17 @@ public class MainActivity extends Activity {
     private void installApkFileDirect(Context context, File apkFile) {
         if (apkFile == null || !apkFile.exists()) return;
         try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                if (!context.getPackageManager().canRequestPackageInstalls()) {
+                    Toast.makeText(context, "Please allow Pharmly to install app updates", Toast.LENGTH_LONG).show();
+                    Intent settingsIntent = new Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES);
+                    settingsIntent.setData(Uri.parse("package:" + context.getPackageName()));
+                    settingsIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    context.startActivity(settingsIntent);
+                    return;
+                }
+            }
+
             Uri apkUri;
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
                 apkUri = androidx.core.content.FileProvider.getUriForFile(
@@ -135,6 +195,7 @@ public class MainActivity extends Activity {
             context.startActivity(intent);
         } catch (Exception e) {
             e.printStackTrace();
+            Toast.makeText(context, "Installation failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -238,7 +299,12 @@ public class MainActivity extends Activity {
                 }
                 
                 // Keep internal app navigation within WebView
-                if (url.contains("pharmabharat-scraper-dic1.onrender.com") || url.contains("pharmabharat.com")) {
+                Uri parsedUri = request.getUrl();
+                String host = parsedUri != null ? parsedUri.getHost() : null;
+                if (host != null && (host.equalsIgnoreCase("pharmabharat-scraper-dic1.onrender.com") 
+                        || host.equalsIgnoreCase("pharmabharat.com") 
+                        || host.endsWith(".pharmabharat.com")
+                        || host.endsWith(".onrender.com"))) {
                     return false;
                 }
 
@@ -330,7 +396,7 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void showNativeNotification(String title, String message, String url) {
-            NotificationHelper.showJobNotification(mContext, title, message);
+            NotificationHelper.showJobNotification(mContext, title, message, url);
         }
 
         @JavascriptInterface
@@ -338,14 +404,49 @@ public class MainActivity extends Activity {
             new Thread(new Runnable() {
                 @Override
                 public void run() {
+                    java.io.InputStream input = null;
+                    java.io.FileOutputStream output = null;
                     try {
-                        String fullUrl = apkUrl.startsWith("http") ? apkUrl : TARGET_URL + apkUrl;
-                        java.net.URL url = new java.net.URL(fullUrl);
-                        java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
-                        conn.setRequestMethod("GET");
-                        conn.setConnectTimeout(15000);
-                        conn.setReadTimeout(15000);
-                        conn.connect();
+                        String currentUrl = apkUrl.startsWith("http") ? apkUrl : TARGET_URL + apkUrl;
+                        Uri checkUri = Uri.parse(currentUrl);
+                        String checkHost = checkUri.getHost();
+                        if (checkHost == null || (!checkHost.contains("github") && !checkHost.contains("onrender") && !checkHost.contains("pharmabharat"))) {
+                            throw new SecurityException("Untrusted download source: " + checkHost);
+                        }
+
+                        // Follow redirects safely (handles GitHub Releases -> AWS S3 / Azure CDN)
+                        java.net.HttpURLConnection conn = null;
+                        int redirects = 0;
+                        while (redirects < 6) {
+                            java.net.URL u = new java.net.URL(currentUrl);
+                            conn = (java.net.HttpURLConnection) u.openConnection();
+                            conn.setRequestMethod("GET");
+                            conn.setConnectTimeout(25000);
+                            conn.setReadTimeout(25000);
+                            conn.setInstanceFollowRedirects(false);
+                            conn.setRequestProperty("User-Agent", "Pharmly-Android/" + getAppVersionCode());
+                            conn.connect();
+
+                            int status = conn.getResponseCode();
+                            if (status == 301 || status == 302 || status == 303 || status == 307 || status == 308) {
+                                String redirectUrl = conn.getHeaderField("Location");
+                                if (redirectUrl != null) {
+                                    if (!redirectUrl.startsWith("http")) {
+                                        redirectUrl = new java.net.URL(u, redirectUrl).toExternalForm();
+                                    }
+                                    currentUrl = redirectUrl;
+                                    redirects++;
+                                    conn.disconnect();
+                                    continue;
+                                }
+                            }
+                            break;
+                        }
+
+                        if (conn == null || conn.getResponseCode() != 200) {
+                            int code = conn != null ? conn.getResponseCode() : -1;
+                            throw new java.io.IOException("Server returned HTTP " + code);
+                        }
 
                         final int fileLength = conn.getContentLength();
                         java.io.File downloadDir = mContext.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS);
@@ -354,8 +455,8 @@ public class MainActivity extends Activity {
                         final java.io.File apkFile = new java.io.File(downloadDir, "Pharmly_Update.apk");
                         downloadedApkFile = apkFile;
 
-                        java.io.InputStream input = conn.getInputStream();
-                        java.io.FileOutputStream output = new java.io.FileOutputStream(apkFile);
+                        input = conn.getInputStream();
+                        output = new java.io.FileOutputStream(apkFile);
 
                         byte[] data = new byte[16384];
                         long total = 0;
@@ -365,9 +466,9 @@ public class MainActivity extends Activity {
                         while ((count = input.read(data)) != -1) {
                             total += count;
                             long currentTime = System.currentTimeMillis();
-                            if (fileLength > 0 && (currentTime - lastReportTime > 200 || total == fileLength)) {
+                            if (fileLength > 0 && (currentTime - lastReportTime > 150 || total == fileLength)) {
                                 lastReportTime = currentTime;
-                                final int progress = (int) (total * 100L / fileLength);
+                                final int progress = Math.min(100, (int) (total * 100L / fileLength));
                                 runOnUiThread(new Runnable() {
                                     @Override
                                     public void run() {
@@ -382,7 +483,9 @@ public class MainActivity extends Activity {
 
                         output.flush();
                         output.close();
+                        output = null;
                         input.close();
+                        input = null;
 
                         // Download Complete -> Update UI to 100% and launch package installer immediately!
                         runOnUiThread(new Runnable() {
@@ -397,6 +500,8 @@ public class MainActivity extends Activity {
 
                     } catch (final Exception e) {
                         e.printStackTrace();
+                        try { if (output != null) output.close(); } catch (Exception ignored) {}
+                        try { if (input != null) input.close(); } catch (Exception ignored) {}
                         runOnUiThread(new Runnable() {
                             @Override
                             public void run() {

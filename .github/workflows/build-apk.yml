@@ -47,22 +47,25 @@ jobs:
       - name: 📤 Upload APK as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Pharmly-v3.6.0
+          name: Pharmly-v3.7.0
           path: Pharmly.apk
           retention-days: 90
 
       - name: 🚀 Create / Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v3.6.0
-          name: "Pharmly v3.6.0"
+          tag_name: v3.7.0
+          name: "Pharmly v3.7.0"
           body: |
-            ## 📱 Pharmly App v3.6.0
+            ## 📱 Pharmly App v3.7.0
 
             Download `Pharmly.apk` below and install on your Android device.
 
-            ### What's new in v3.6.0:
-            - ⚡ Native Doze-Bypass push notifications (2-Min background check)
+            ### What's new in v3.7.0:
+            - 📦 Fixed In-App Auto-Update & FileProvider package installer
+            - 🎯 Direct job notification deep linking to job modal
+            - ⚡ Battery-optimized background notification engine
+            - 🛡️ Enhanced WebView security & memory management
             - 🔔 Instant startup & resume push check in MainActivity
             - 🎯 4-Field smart deduplication engine (Brand, Role, Loc, Exp)
             - 🌐 Updated live backend server endpoint

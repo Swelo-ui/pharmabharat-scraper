@@ -2943,10 +2943,8 @@ function checkAppUpdate() {
         } catch(e) {}
       }
 
-      const installedVerCode = parseInt(localStorage.getItem("installed_ver_code") || "0", 10);
-
-      // Only prompt update if server version is strictly greater than local app version AND not already marked installed in this session
-      if (data.version_code > localVersionCode && data.version_code > installedVerCode) {
+      // Only prompt update if server version is strictly greater than local app version
+      if (data.version_code > localVersionCode) {
         const verTag = document.getElementById("update-version-tag");
         if (verTag) verTag.textContent = `New Version ${data.version_name || ''} Ready`;
         
@@ -3014,14 +3012,7 @@ window.onApkDownloadProgress = function(percent) {
 // Global Callback from Native Android Java when APK download is 100% complete
 window.onApkDownloadComplete = function() {
   isApkDownloadFinished = true;
-  if (currentServerVerCode) {
-    localStorage.setItem("installed_ver_code", currentServerVerCode);
-  }
   
-  // Hide home banner since update is installed
-  const homeBanner = document.getElementById("home-update-banner");
-  if (homeBanner) homeBanner.style.display = "none";
-
   const fill = document.getElementById("update-progress-fill");
   const txt = document.getElementById("update-percent-text");
   const statusTxt = document.getElementById("update-status-text");
@@ -3431,6 +3422,17 @@ document.addEventListener("DOMContentLoaded", () => {
   fetchStats();
   loadDropdowns();
   fetchJobs();
+
+  // Handle deep-linked job alerts from Android notifications
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetJob = urlParams.get("job");
+    if (targetJob) {
+      setTimeout(() => {
+        if (typeof openJobModal === "function") openJobModal(targetJob);
+      }, 600);
+    }
+  } catch (e) {}
 });
 </script>
 
