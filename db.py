@@ -127,6 +127,10 @@ def backfill_banners():
                                     img_url = src_val.strip()
                                     break
                         if img_url:
+                            img_lower = img_url.lower()
+                            if any(x in img_lower for x in ["google-preferred", "preferred-source", "google-news", "google", "logo", "favicon", "default-avatar"]):
+                                img_url = None
+                        if img_url:
                             conn.execute("UPDATE jobs SET banner_url = ? WHERE slug = ?", (img_url, r["slug"]))
                 except Exception:
                     pass
@@ -378,6 +382,14 @@ def init_db():
                     pass
         # Set all existing rows to active if is_active is NULL
         conn.execute("UPDATE jobs SET is_active = 1 WHERE is_active IS NULL")
+        # Clean out any Google preferred source / news banners or generic placeholders from database
+        conn.execute("""
+            UPDATE jobs
+            SET banner_url = NULL
+            WHERE banner_url LIKE '%google-preferred%'
+               OR banner_url LIKE '%preferred-source%'
+               OR banner_url LIKE '%google-news%'
+        """)
         # Composite indexes created AFTER migration so columns exist
         conn.execute("CREATE INDEX IF NOT EXISTS idx_category ON jobs(category)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_fresher ON jobs(is_fresher_friendly)")
@@ -508,6 +520,9 @@ def seed_from_json():
             return
         with get_conn() as conn:
             for j in seed_jobs:
+                b_url = j.get("banner_url")
+                if b_url and any(x in b_url.lower() for x in ["google-preferred", "preferred-source", "google-news"]):
+                    b_url = None
                 conn.execute("""
                     INSERT INTO jobs (
                         slug, url, title, company, category, experience_raw, is_fresher, is_fresher_friendly,
@@ -554,7 +569,7 @@ def seed_from_json():
                     "notified": j.get("notified", 0),
                     "email": j.get("email"),
                     "phone": j.get("phone"),
-                    "banner_url": j.get("banner_url"),
+                    "banner_url": b_url,
                     "source": j.get("source", "pharmabharat")
                 })
     except Exception:
@@ -756,7 +771,7 @@ def upsert_job(job: dict) -> bool:
                 1,  # is_active
                 job.get("email"),
                 job.get("phone"),
-                job.get("banner_url"),
+                (None if job.get("banner_url") and any(x in job.get("banner_url").lower() for x in ["google-preferred", "preferred-source", "google-news"]) else job.get("banner_url")),
                 job.get("source", "pharmabharat"),
             ),
         )
@@ -770,6 +785,8 @@ def upsert_job(job: dict) -> bool:
 def update_detail(slug: str, description_md: str, extra: dict):
     """Deep-scrape ke baad detail page ka structured data update karo."""
     b_url = extra.get("banner_url")
+    if b_url and any(x in b_url.lower() for x in ["google-preferred", "preferred-source", "google-news"]):
+        b_url = None
     with get_conn() as conn:
         conn.execute(
             """

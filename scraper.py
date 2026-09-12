@@ -215,6 +215,23 @@ def _is_likely_company(text):
     return True
 
 
+def is_valid_banner_url(url: str | None) -> bool:
+    """Validates that an image URL is a genuine recruitment flyer/poster,
+    filtering out Google preferred-source badges, social follow banners, and logos."""
+    if not url or not isinstance(url, str):
+        return False
+    u = url.strip().lower()
+    if u.startswith("data:"):
+        return False
+    bad_patterns = [
+        "logo", "favicon", "default-avatar", "avatar", "placeholder",
+        "header-logo", "brand-logo", "cropped-logo", "pharma-jobs-2026", "pharma-jobs-2",
+        "google-preferred-source", "google-preferred", "preferred-source", "preferred_source",
+        "google-news", "google", "follow-us", "subscribe", "vector-", "200x200"
+    ]
+    return not any(p in u for p in bad_patterns)
+
+
 def _extract_location(lines):
     """Try to find a concise city/location from remaining lines using city keyword matching."""
     for line in lines:
@@ -429,21 +446,16 @@ def parse_detail_page(html):
     og_img = soup.find("meta", property="og:image") or soup.find("meta", attrs={"name": "og:image"}) or soup.find("meta", attrs={"name": "twitter:image"})
     if og_img and og_img.get("content"):
         c_url = og_img["content"].strip()
-        # Filter out site logos and generic PharmaBharat site template banners (e.g., Pharma-jobs-2026-...)
-        is_generic_placeholder = any(x in c_url.lower() for x in ["logo", "favicon", "default-avatar", "placeholder", "header-logo", "brand-logo", "cropped-logo", "pharma-jobs-2026", "pharma-jobs-2"])
-        if c_url and not c_url.startswith("data:") and not is_generic_placeholder:
+        if is_valid_banner_url(c_url):
             banner_url = c_url
 
     # Fallback to first real non-logo flyer image in container if no valid og:image
     if not banner_url and container:
         for img in container.find_all("img"):
             src_val = img.get("src")
-            if src_val and not src_val.startswith("data:"):
-                src_val = src_val.strip()
-                is_logo_or_small = any(x in src_val.lower() for x in ["logo", "favicon", "placeholder", "default-avatar", "avatar", "header-logo", "brand-logo", "vector-", "200x200"])
-                if not is_logo_or_small:
-                    banner_url = src_val
-                    break
+            if src_val and is_valid_banner_url(src_val):
+                banner_url = src_val.strip()
+                break
 
     # REMOVE ALL AD ELEMENTS, IFRAMES, TABLE OF CONTENTS (TOC), AND SCRIPT BLOCKS BEFORE CONVERTING TO MARKDOWN
     ad_selectors = [
@@ -452,7 +464,9 @@ def parse_detail_page(html):
         "div[class*='ad-']", "div[class*='ads']", ".jp-relatedposts",
         "#toc_container", ".toc_container", ".ez-toc-container", ".ez-toc-v2_0_69",
         "#ez-toc-container", "div[id*='toc']", "div[class*='toc']", ".table-of-contents",
-        "nav[class*='toc']", ".ez-toc-title-container", ".ez-toc-widget-container"
+        "nav[class*='toc']", ".ez-toc-title-container", ".ez-toc-widget-container",
+        "img[src*='google-preferred-source']", "img[src*='preferred-source']",
+        "a[href*='news.google.com']", "a[href*='google.com/preferences']"
     ]
     for sel in ad_selectors:
         for tag in container.select(sel):
@@ -841,6 +855,8 @@ def parse_pr_listing_page(html, source="pharmarecruiter"):
                                     pass
                         if best:
                             banner_url = best
+            if not is_valid_banner_url(banner_url):
+                banner_url = None
 
         # Category
         article_classes = article.get("class", [])

@@ -101,15 +101,16 @@ def api_telegram_scrape():
 def api_app_version():
     # ✅ BANDWIDTH FIX: Use GitHub Releases URL (CDN-served), not raw/main (counts as Render egress via Android app).
     resp = jsonify({
-        "version_code": 11,
-        "version_name": "3.7.0",
+        "version_code": 12,
+        "version_name": "3.7.1",
         "download_url": "https://github.com/Swelo-ui/pharmabharat-scraper/releases/latest/download/Pharmly.apk",
         "changelog": [
-            "⚡ Official Version 3.7.0 Update!",
-            "Fixed In-App Auto-Update & FileProvider Package Installer",
-            "Added Direct Job Notification Deep-Linking",
-            "Optimized Battery-Safe Background Engine & Cold-Start Tolerances",
-            "Enhanced WebView Security & Lifecycle Memory Management"
+            "⚡ Official Version 3.7.1 Release!",
+            "Fixed Google Preferred Source & Badges in Job Recruitment Flyers",
+            "Enhanced Real Recruitment Poster & Flyer Extraction",
+            "Seamless 1-Tap In-App Auto-Update & Package Installer",
+            "Direct Job Notification Deep-Linking to Job Modal",
+            "Battery-Safe Background Notifications & Cold-Start Tolerances"
         ]
     })
     resp.headers["Cache-Control"] = "public, max-age=3600"  # Cache for 1 hour

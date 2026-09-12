@@ -2029,6 +2029,17 @@ function detectDegrees(title, desc, category) {
   return degs;
 }
 
+function isValidJobBanner(url) {
+  if (!url || typeof url !== 'string') return false;
+  const u = url.toLowerCase().trim();
+  if (u.startsWith('data:')) return false;
+  const badPatterns = [
+    'google-preferred', 'preferred-source', 'google-news', 'google',
+    'follow-us', 'subscribe', 'default-avatar', 'placeholder', 'header-logo', 'brand-logo'
+  ];
+  return !badPatterns.some(p => u.includes(p));
+}
+
 let currentModalJob = null;
 
 // Dark Mode Toggle
@@ -2535,7 +2546,7 @@ function createJobCardInnerHtml(job) {
       </div>
     </div>
 
-    ${job.banner_url ? `
+    ${isValidJobBanner(job.banner_url) ? `
     <div class="card-banner-thumb" onclick="event.stopPropagation(); openJobModal('${job.slug}')">
       <img src="${job.banner_url}" alt="Job Banner" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentElement.style.display='none'">
     </div>` : ''}
@@ -2664,7 +2675,7 @@ function renderModalJobData(job) {
   document.getElementById("modal-apply-btn").href = job.url;
 
   // ── Banner Card & Overview Tab ──
-  const bannerHtml = (job.banner_url && !job.banner_url.startsWith('data:')) ? `
+  const bannerHtml = isValidJobBanner(job.banner_url) ? `
     <div class="job-banner-card">
       <div class="job-banner-badge">
         <i data-lucide="image" style="width:12px;height:12px;"></i> Official Recruitment Flyer / Poster (Tap to Zoom HD)

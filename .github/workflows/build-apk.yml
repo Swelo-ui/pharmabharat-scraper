@@ -47,28 +47,27 @@ jobs:
       - name: 📤 Upload APK as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Pharmly-v3.7.0
+          name: Pharmly-v3.7.1
           path: Pharmly.apk
           retention-days: 90
 
       - name: 🚀 Create / Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v3.7.0
-          name: "Pharmly v3.7.0"
+          tag_name: v3.7.1
+          name: "Pharmly v3.7.1"
           body: |
-            ## 📱 Pharmly App v3.7.0
+            ## 📱 Pharmly App v3.7.1
 
             Download `Pharmly.apk` below and install on your Android device.
 
-            ### What's new in v3.7.0:
+            ### What's new in v3.7.1:
+            - 🛡️ Filtered Google Preferred Source & News badges from job recruitment flyers
+            - 🖼️ Enhanced real recruitment poster & flyer extraction
             - 📦 Fixed In-App Auto-Update & FileProvider package installer
             - 🎯 Direct job notification deep linking to job modal
             - ⚡ Battery-optimized background notification engine
-            - 🛡️ Enhanced WebView security & memory management
             - 🔔 Instant startup & resume push check in MainActivity
-            - 🎯 4-Field smart deduplication engine (Brand, Role, Loc, Exp)
-            - 🌐 Updated live backend server endpoint
           files: Pharmly.apk
           make_latest: true
         env:
