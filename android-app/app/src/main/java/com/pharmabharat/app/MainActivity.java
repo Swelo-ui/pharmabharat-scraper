@@ -14,6 +14,7 @@ import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -324,12 +325,26 @@ public class MainActivity extends Activity {
                     showErrorScreen();
                 }
             }
+
+            @Override
+            public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse errorResponse) {
+                if (request.isForMainFrame() && errorResponse != null) {
+                    int statusCode = errorResponse.getStatusCode();
+                    if (statusCode >= 400) {
+                        showErrorScreen();
+                    }
+                }
+            }
         });
     }
 
     private void loadApp() {
         if (isNetworkAvailable()) {
             errorLayout.setVisibility(View.GONE);
+            if (progressBar != null) {
+                progressBar.setVisibility(View.VISIBLE);
+                progressBar.setProgress(15);
+            }
             webView.setVisibility(View.VISIBLE);
             webView.loadUrl(TARGET_URL);
         } else {
