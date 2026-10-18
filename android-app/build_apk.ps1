@@ -46,11 +46,13 @@ $mainApk = Join-Path $scriptDir "..\Pharmly.apk"
 Copy-Item $builtApk -Destination $mainApk -Force
 Write-Host "Copied to $mainApk" -ForegroundColor Green
 
-# Also copy to root workspace so root APK is always up to date
+# Also copy to root workspace so all root APKs are always up to date
 $rootApk = "H:\Pharmly\Pharmly.apk"
 $rootProApk = "H:\Pharmly\PharmlyPro.apk"
+$rootPharmaBharatProApk = "H:\Pharmly\PharmaBharatPro.apk"
 Copy-Item $builtApk -Destination $rootApk -Force
 Copy-Item $builtApk -Destination $rootProApk -Force
-Write-Host "Copied to $rootApk and $rootProApk" -ForegroundColor Green
+Copy-Item $builtApk -Destination $rootPharmaBharatProApk -Force
+Write-Host "Copied to $rootApk, $rootProApk, and $rootPharmaBharatProApk" -ForegroundColor Green
 
 Write-Host "APK Build Successful! Official APK: Pharmly.apk" -ForegroundColor Green

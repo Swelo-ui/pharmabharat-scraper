@@ -299,6 +299,13 @@ public class MainActivity extends Activity {
                     }
                 }
                 
+                // Auto-rewrite any legacy / old render URL to the active dic1 URL
+                if (url.contains("pharmabharat-scraper.onrender.com") && !url.contains("pharmabharat-scraper-dic1")) {
+                    String correctedUrl = url.replace("pharmabharat-scraper.onrender.com", "pharmabharat-scraper-dic1.onrender.com");
+                    view.loadUrl(correctedUrl);
+                    return true;
+                }
+
                 // Keep internal app navigation within WebView
                 Uri parsedUri = request.getUrl();
                 String host = parsedUri != null ? parsedUri.getHost() : null;
