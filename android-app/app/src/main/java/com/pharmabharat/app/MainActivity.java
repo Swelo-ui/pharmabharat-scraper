@@ -374,12 +374,19 @@ public class MainActivity extends Activity {
         return false;
     }
 
+    private long lastBackPressTime = 0;
+
     @Override
     public void onBackPressed() {
-        if (webView.canGoBack()) {
+        if (webView != null && webView.canGoBack()) {
             webView.goBack();
-        } else {
+            return;
+        }
+        if (System.currentTimeMillis() - lastBackPressTime < 2000) {
             super.onBackPressed();
+        } else {
+            lastBackPressTime = System.currentTimeMillis();
+            Toast.makeText(this, "Press back again to exit", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -389,6 +396,25 @@ public class MainActivity extends Activity {
 
         WebAppInterface(Context c) {
             mContext = c;
+        }
+
+        @JavascriptInterface
+        public void setSwipeRefreshEnabled(boolean enabled) {
+            // Safe hook for web app calls
+        }
+
+        @JavascriptInterface
+        public void setStatusBarColor(final String hexColor) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                            getWindow().setStatusBarColor(android.graphics.Color.parseColor(hexColor));
+                        }
+                    } catch (Exception ignored) {}
+                }
+            });
         }
 
         @JavascriptInterface

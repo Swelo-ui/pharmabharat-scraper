@@ -47,26 +47,28 @@ jobs:
       - name: 📤 Upload APK as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Pharmly-v3.7.3
+          name: Pharmly-v3.7.4
           path: Pharmly.apk
           retention-days: 90
 
       - name: 🚀 Create / Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v3.7.3
-          name: "Pharmly v3.7.3"
+          tag_name: v3.7.4
+          name: "Pharmly v3.7.4"
           body: |
-            ## 📱 Pharmly App v3.7.3
+            ## 📱 Pharmly App v3.7.4
 
             Download `Pharmly.apk` below and install on your Android device.
 
-            ### What's new in v3.7.3:
-            - 🌐 Fixed Render server connectivity (resolved 404 Not Found error)
-            - 🛡️ Zero Data Loss guaranteed: in-place upgrade preserves all saved bookmarks & jobs
-            - 🔄 Automatic legacy Render URL redirection to active domain
-            - ⚡ Enhanced offline and connection retry handling
-            - 🎯 Direct job notification deep linking to job modal
+            ### What's new in v3.7.4:
+            - ⚡ Fixed modal bookmark/save button & state synchronization
+            - 🖼️ Added Flyer Download button to Fullscreen HD Lightbox
+            - 🛡️ Double-tap back to exit prevents accidental app close
+            - 🔔 Fixed background notification receiver drops using goAsync()
+            - 🎨 Synchronized dark mode theme to native Android status bar
+            - 📱 Fixed top bar layout jump & improved mobile touch targets
+            - 🚀 Bundled Lucide icons & Marked library for instant offline loading
           files: Pharmly.apk
           make_latest: true
         env:

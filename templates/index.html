@@ -2,17 +2,16 @@
 <html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
 <title>Pharmly — Pharma Jobs & Recruitment Intelligence</title>
 <link rel="icon" type="image/png" href="/static/images/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
 
-<!-- Marked JS for clean markdown & table rendering -->
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-<!-- Lucide Icons CDN -->
-<script src="https://unpkg.com/lucide@latest"></script>
+<!-- Bundled Local Libraries with CDN Fallbacks for 100% Offline Resilience -->
+<script src="/static/js/marked.min.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/marked/marked.min.js'"></script>
+<script src="/static/js/lucide.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/lucide@latest'"></script>
 
 <style>
   :root {
@@ -103,6 +102,10 @@
     display: flex;
     flex-direction: column;
     transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  body.modal-open {
+    overflow: hidden !important;
   }
 
   /* Header Navbar (Clean solid surface, no GPU-heavy blur for 60fps scrolling) */
@@ -842,7 +845,8 @@
     background: var(--contact-bg);
     border: 1px solid var(--contact-border);
     border-radius: 100px;
-    padding: 4px 10px;
+    padding: 6px 12px;
+    min-height: 32px;
     text-decoration: none;
     display: inline-flex;
     align-items: center;
@@ -925,8 +929,9 @@
   }
 
   .btn-action {
-    height: 34px;
-    padding: 0 10px;
+    height: 38px;
+    min-height: 38px;
+    padding: 0 12px;
     border-radius: var(--radius-sm);
     font-size: 0.78rem;
     font-weight: 600;
@@ -1559,6 +1564,7 @@
     </div>
     <button class="btn-reset-pill" id="reset-filters-btn">
       <i data-lucide="rotate-ccw" style="width:13px;height:13px;"></i> Reset All
+    </button>
   </div>
 </div>
 
@@ -1569,7 +1575,7 @@
     <div style="min-width:0; flex:1; display:flex; flex-direction:column; justify-content:center;">
       <div style="display:flex; align-items:center; gap:6px; min-width:0;">
         <span style="font-size:0.84rem; font-weight:800; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Update Available</span>
-        <span id="home-update-ver-tag" style="font-size:0.68rem; font-weight:800; color:var(--primary); background:rgba(45,212,191,0.12); padding:1px 6px; border-radius:8px; border:1px solid rgba(45,212,191,0.3); flex-shrink:0;">v3.2.0</span>
+        <span id="home-update-ver-tag" style="font-size:0.68rem; font-weight:800; color:var(--primary); background:rgba(45,212,191,0.12); padding:1px 6px; border-radius:8px; border:1px solid rgba(45,212,191,0.3); flex-shrink:0;">Ready</span>
       </div>
       <div style="font-size:0.72rem; color:var(--ink-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:500; margin-top:2px;">Tap to install new features & fixes</div>
     </div>
@@ -1983,9 +1989,14 @@
     <div style="font-size:0.9rem; font-weight:700; display:flex; align-items:center; gap:8px;">
       <i data-lucide="image" style="width:18px;height:18px;color:var(--primary-light,#2DD4BF);"></i> Job Recruitment Flyer / Poster
     </div>
-    <button onclick="closeImageLightbox()" aria-label="Close Lightbox" style="background:rgba(255,255,255,0.18); border:none; color:#fff; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer;">
-      <i data-lucide="x" style="width:20px;height:20px;"></i>
-    </button>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <a id="lightbox-download-btn" href="#" target="_blank" download aria-label="Download Flyer" title="Download Recruitment Flyer" style="background:rgba(255,255,255,0.18); border:none; color:#fff; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; text-decoration:none;">
+        <i data-lucide="download" style="width:18px;height:18px;"></i>
+      </a>
+      <button onclick="closeImageLightbox()" aria-label="Close Lightbox" style="background:rgba(255,255,255,0.18); border:none; color:#fff; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+        <i data-lucide="x" style="width:20px;height:20px;"></i>
+      </button>
+    </div>
   </div>
   <div id="lightbox-zoom-container" style="flex:1; width:100%; display:flex; align-items:center; justify-content:center; overflow:hidden; position:relative; touch-action:none;">
     <img id="lightbox-target-img" src="" alt="Recruitment Flyer" style="max-width:100%; max-height:100%; object-fit:contain; transition:transform 0.1s ease-out; transform-origin:center center;">
@@ -2054,7 +2065,14 @@ function updateThemeIcon(theme) {
     if (window.lucide) lucide.createIcons();
   }
 }
-updateThemeIcon(savedTheme);
+function syncNativeStatusBar(theme) {
+  if (window.AndroidNative && window.AndroidNative.setStatusBarColor) {
+    try {
+      window.AndroidNative.setStatusBarColor(theme === "dark" ? "#0B0F17" : "#0F766E");
+    } catch(e) {}
+  }
+}
+syncNativeStatusBar(savedTheme);
 
 themeToggle.addEventListener("click", () => {
   const current = document.documentElement.getAttribute("data-theme");
@@ -2062,6 +2080,7 @@ themeToggle.addEventListener("click", () => {
   document.documentElement.setAttribute("data-theme", next);
   localStorage.setItem("pb_theme", next);
   updateThemeIcon(next);
+  syncNativeStatusBar(next);
 });
 
 // Toast Notification Utility — pointer-events:none so it NEVER blocks card touches
@@ -2646,16 +2665,6 @@ function fetchJobs() {
     });
 }
 
-// Share API / Copy Link
-function shareJob(title, url, e) {
-  if (e) e.stopPropagation();
-  if (navigator.share) {
-    navigator.share({ title: title, url: url }).catch(() => {});
-  } else {
-    navigator.clipboard.writeText(url);
-    showToast("Job link copied to clipboard!");
-  }
-}
 
 // Control Native Android SwipeRefreshLayout (Disables pull-to-refresh when modals are open)
 function setNativeSwipeRefresh(enabled) {
@@ -2673,6 +2682,13 @@ function renderModalJobData(job) {
   const formattedDateStr = formatJobDate(job);
   document.getElementById("modal-date").innerHTML = formattedDateStr ? `<span style="font-size:0.75rem;color:var(--ink-muted);font-weight:600;margin-right:2px;">Posted:</span> ${formattedDateStr}` : "";
   document.getElementById("modal-apply-btn").href = job.url;
+
+  const modalSaveBtn = document.getElementById("modal-save-btn");
+  if (modalSaveBtn) {
+    const isSaved = state.savedSlugs.includes(job.slug);
+    modalSaveBtn.classList.toggle("saved", isSaved);
+    modalSaveBtn.innerHTML = isSaved ? '<i data-lucide="bookmark-check" style="width:14px;height:14px;"></i> Saved' : '<i data-lucide="bookmark" style="width:14px;height:14px;"></i> Save';
+  }
 
   // ── Banner Card & Overview Tab ──
   const bannerHtml = isValidJobBanner(job.banner_url) ? `
@@ -2823,6 +2839,7 @@ function closeAllModals() {
     lbModal.style.opacity = "0";
     lbModal.style.display = "none";
   }
+  document.body.classList.remove("modal-open");
   setNativeSwipeRefresh(true);
 }
 
@@ -2845,7 +2862,15 @@ function openImageLightbox(imgUrl) {
   if (!modal || !targetImg) return;
 
   targetImg.src = imgUrl;
-  if (downloadBtn) downloadBtn.href = imgUrl;
+  if (downloadBtn) {
+    downloadBtn.href = imgUrl;
+    downloadBtn.onclick = function(e) {
+      if (window.AndroidNative && window.AndroidNative.downloadFile) {
+        e.preventDefault();
+        window.AndroidNative.downloadFile(imgUrl, "Pharmly_Job_Flyer.jpg");
+      }
+    };
+  }
   
   resetZoomAndPan();
   
@@ -2936,8 +2961,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  container.addEventListener("touchend", () => {
-    isPanning = false;
+  container.addEventListener("touchend", (e) => {
+    if (e.touches && e.touches.length === 1) {
+      isPanning = true;
+      startTouchX = e.touches[0].clientX - currentPanX;
+      startTouchY = e.touches[0].clientY - currentPanY;
+    } else if (!e.touches || e.touches.length === 0) {
+      isPanning = false;
+      initialPinchDistance = 0;
+    }
   });
 });
 
@@ -2947,7 +2979,7 @@ let appUpdateDownloadUrl = "https://github.com/Swelo-ui/pharmabharat-scraper/rel
 function handleFallbackDownload(event) {
   if (event) event.preventDefault();
   const url = appUpdateDownloadUrl || "https://github.com/Swelo-ui/pharmabharat-scraper/releases/latest/download/Pharmly.apk";
-  showToast("Opening Pharmly v3.7.0 in browser...");
+  showToast("Opening latest Pharmly APK download in browser...");
   if (window.AndroidNative && window.AndroidNative.downloadFile) {
     window.AndroidNative.downloadFile(url, "Pharmly.apk");
   } else {
@@ -3101,6 +3133,7 @@ setTimeout(checkAppUpdate, 2500);
 
 function openModalWithHistory(modalId) {
   setNativeSwipeRefresh(false);
+  document.body.classList.add("modal-open");
   const modal = document.getElementById(modalId);
   if (modal) {
     modal.classList.add("open");
@@ -3176,6 +3209,19 @@ document.getElementById("close-sort-modal").addEventListener("click", () => {
 document.getElementById("modal-share-btn").addEventListener("click", (e) => {
   if (currentModalJob && currentModalJob.slug) shareJobBySlug(currentModalJob.slug, e);
 });
+
+const modalSaveBtnEl = document.getElementById("modal-save-btn");
+if (modalSaveBtnEl) {
+  modalSaveBtnEl.addEventListener("click", (e) => {
+    if (currentModalJob && currentModalJob.slug) {
+      toggleSave(currentModalJob.slug, e);
+      const isSaved = state.savedSlugs.includes(currentModalJob.slug);
+      modalSaveBtnEl.classList.toggle("saved", isSaved);
+      modalSaveBtnEl.innerHTML = isSaved ? '<i data-lucide="bookmark-check" style="width:14px;height:14px;"></i> Saved' : '<i data-lucide="bookmark" style="width:14px;height:14px;"></i> Save';
+      if (window.lucide) lucide.createIcons();
+    }
+  });
+}
 
 document.getElementById("open-degree-modal").addEventListener("click", () => {
   openModalWithHistory("degree-modal");
@@ -3338,30 +3384,51 @@ document.getElementById("export-csv-btn").addEventListener("click", () => {
 
 function submitExportAuth() {
   const passInput = document.getElementById("export-password-input");
-  const password = passInput ? passInput.value.trim().toLowerCase() : "";
+  const password = passInput ? passInput.value.trim() : "";
   const errEl = document.getElementById("export-auth-error");
 
-  if (password === "swelo") {
-    closeAllModals();
-    showToast("Password verified! Downloading Excel data file...");
-    const params = new URLSearchParams({
-      format: "csv",
-      category: state.category,
-      fresher_only: state.fresher_only,
-      verified_only: state.verified_only,
-      q: state.q,
-      key: "swelo"
-    });
-    const exportUrl = `/api/export?${params.toString()}`;
-    window.open(exportUrl, "_blank");
-  } else {
-    if (errEl) errEl.style.display = "block";
-    showToast("Access Denied: Incorrect Admin Password!");
-    if (passInput) {
-      passInput.focus();
-      passInput.select();
-    }
+  if (!password) {
+    if (errEl) { errEl.textContent = "Please enter admin password."; errEl.style.display = "block"; }
+    return;
   }
+
+  const testParams = new URLSearchParams({
+    format: "json",
+    key: password,
+    per_page: 1
+  });
+
+  fetch(`/api/export?${testParams.toString()}`)
+    .then(r => {
+      if (r.status === 200) {
+        closeAllModals();
+        showToast("Password verified! Downloading Excel data file...");
+        const params = new URLSearchParams({
+          format: "csv",
+          category: state.category,
+          fresher_only: state.fresher_only,
+          verified_only: state.verified_only,
+          q: state.q,
+          key: password
+        });
+        const exportUrl = `/api/export?${params.toString()}`;
+        if (window.AndroidNative && window.AndroidNative.downloadFile) {
+          window.AndroidNative.downloadFile(exportUrl, "pharmabharat_jobs_export.csv");
+        } else {
+          window.open(exportUrl, "_blank");
+        }
+      } else {
+        if (errEl) { errEl.textContent = "Access Denied: Incorrect Admin Password!"; errEl.style.display = "block"; }
+        showToast("Access Denied: Incorrect Admin Password!");
+        if (passInput) {
+          passInput.focus();
+          passInput.select();
+        }
+      }
+    })
+    .catch(() => {
+      if (errEl) { errEl.textContent = "Network error. Try again."; errEl.style.display = "block"; }
+    });
 }
 
 // Trigger Live Scrape Sync Action

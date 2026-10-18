@@ -27,6 +27,9 @@ public class AlarmReceiver extends BroadcastReceiver {
         // Reschedule next alarm
         scheduleAlarm(context);
 
+        // Keep broadcast receiver alive during async background execution
+        final PendingResult pendingResult = goAsync();
+
         // Acquire temporary wake lock to complete background check
         PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
         final PowerManager.WakeLock wakeLock = pm != null ? pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Pharmly:NotifWakeLock") : null;
@@ -167,6 +170,13 @@ public class AlarmReceiver extends BroadcastReceiver {
                     if (wakeLock != null && wakeLock.isHeld()) {
                         try {
                             wakeLock.release();
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
+                    if (pendingResult != null) {
+                        try {
+                            pendingResult.finish();
                         } catch (Exception e) {
                             e.printStackTrace();
                         }

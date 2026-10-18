@@ -4,7 +4,13 @@
     android:layout_height="match_parent"
     android:background="@color/bg_light">
 
-    <!-- Progress Indicator -->
+    <!-- WebView Container -->
+    <WebView
+        android:id="@+id/webView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- Progress Indicator Overlay (Does not shift WebView) -->
     <ProgressBar
         android:id="@+id/progressBar"
         style="?android:attr/progressBarStyleHorizontal"
@@ -13,13 +19,6 @@
         android:layout_alignParentTop="true"
         android:max="100"
         android:visibility="gone" />
-
-    <!-- WebView Container -->
-    <WebView
-        android:id="@+id/webView"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_below="@id/progressBar" />
 
     <!-- Offline / Error Container -->
     <LinearLayout

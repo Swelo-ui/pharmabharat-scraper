@@ -65,6 +65,9 @@ def trigger_internal_push_broadcast(title: str, message: str, url: str = "/"):
 def api_push_broadcast():
     global BROADCAST_NOTIFICATION
     if request.method == "POST":
+        auth_key = request.headers.get("X-Admin-Secret") or request.args.get("key") or ""
+        if auth_key.strip().lower() != "swelo":
+            return jsonify({"error": "Unauthorized. Admin secret required."}), 403
         data = request.get_json() or {}
         BROADCAST_NOTIFICATION = {
             "id": f"notif_{int(time.time())}",
@@ -101,15 +104,18 @@ def api_telegram_scrape():
 def api_app_version():
     # ✅ BANDWIDTH FIX: Use GitHub Releases URL (CDN-served), not raw/main (counts as Render egress via Android app).
     resp = jsonify({
-        "version_code": 14,
-        "version_name": "3.7.3",
+        "version_code": 15,
+        "version_name": "3.7.4",
         "download_url": "https://github.com/Swelo-ui/pharmabharat-scraper/releases/latest/download/Pharmly.apk",
         "changelog": [
-            "⚡ Official Version 3.7.3 Release!",
-            "Fixed Render connectivity & resolved Not Found error",
-            "Seamless In-Place Upgrade - Zero Data Loss (all bookmarks preserved)",
-            "Automatic legacy server redirect to new Render domain",
-            "Enhanced offline & connection retry screen handling"
+            "⚡ Official Version 3.7.4 Performance & Polish Release!",
+            "Fixed modal bookmark/save button & state synchronization",
+            "Added Flyer Download button to Fullscreen HD Lightbox",
+            "Added double-tap back to exit to prevent accidental app close",
+            "Fixed background notification receiver drops using goAsync()",
+            "Synchronized dark mode theme to native Android status bar",
+            "Fixed top bar layout jump & improved mobile touch targets",
+            "Bundled Lucide icons & Marked library for instant offline loading"
         ]
     })
     resp.headers["Cache-Control"] = "public, max-age=3600"  # Cache for 1 hour
