@@ -3908,7 +3908,7 @@ function detectAccurateLocation() {
           .catch(() => {});
       },
       err => {},
-      { timeout: 7000, maximumAge: 120000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
     );
   }
 }
