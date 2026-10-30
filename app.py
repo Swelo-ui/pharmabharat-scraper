@@ -522,6 +522,8 @@ def api_telemetry_heartbeat():
     device_name = data.get("device_name")
     os_version = data.get("os_version")
     app_version = data.get("app_version")
+    session_id = data.get("session_id")
+    duration_sec = data.get("duration_sec", 0)
 
     # Extract client IP
     ip = request.headers.get("X-Forwarded-For")
@@ -530,11 +532,16 @@ def api_telemetry_heartbeat():
     else:
         ip = request.remote_addr or ""
 
-    # Geo lookup
-    city = request.headers.get("CF-IPCity")
-    region = request.headers.get("CF-Region")
-    country = request.headers.get("CF-IPCountry")
-    if not city:
+    # Geo lookup: prioritize client-detected GPS/district city, fallback to IP gateway
+    city = data.get("city")
+    region = data.get("region")
+    country = data.get("country")
+
+    if not city or city.lower() in ["unknown", "india", "local dev"]:
+        city = request.headers.get("CF-IPCity")
+        region = request.headers.get("CF-Region")
+        country = request.headers.get("CF-IPCountry")
+    if not city or city.lower() in ["unknown", "india", "local dev"]:
         geo = lookup_ip_geo(ip)
         city = geo.get("city")
         region = geo.get("region")
@@ -548,7 +555,9 @@ def api_telemetry_heartbeat():
         ip_address=ip,
         city=city,
         region=region,
-        country=country
+        country=country,
+        session_id=session_id,
+        duration_sec=duration_sec
     )
 
     return jsonify({
@@ -599,6 +608,15 @@ def admin_api_stats():
     if not _is_admin_authenticated(request):
         return jsonify({"error": "Unauthorized"}), 401
     return jsonify(db.get_device_analytics_stats())
+
+@app.route("/admin/api/device/history")
+def admin_api_device_history():
+    if not _is_admin_authenticated(request):
+        return jsonify({"error": "Unauthorized"}), 401
+    device_id = request.args.get("device_id")
+    if not device_id:
+        return jsonify({"error": "Missing device_id"}), 400
+    return jsonify(db.get_device_24h_history(device_id))
 
 @app.route("/admin/api/device/toggle-restriction", methods=["POST"])
 def admin_api_toggle_restriction():

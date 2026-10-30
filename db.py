@@ -425,6 +425,23 @@ def init_db():
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_device_last_seen ON device_analytics(last_seen_at);")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_device_restricted ON device_analytics(is_restricted);")
+
+        # Device session retention & 24h activity history table
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS device_sessions (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            device_id       TEXT NOT NULL,
+            session_id      TEXT NOT NULL UNIQUE,
+            started_at      INTEGER NOT NULL,
+            last_active_at  INTEGER NOT NULL,
+            duration_sec    INTEGER DEFAULT 0,
+            ip_address      TEXT,
+            city            TEXT,
+            region          TEXT
+        );
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_dev_sess_dev_id ON device_sessions(device_id);")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_dev_sess_started ON device_sessions(started_at);")
     # Auto-extract email/phone, banner images, posted timestamps & company names for existing jobs
     backfill_contacts()
     backfill_banners()
@@ -1275,21 +1292,56 @@ def backfill_apply_links():
 
 def record_device_heartbeat(device_id: str, device_name: str = None, os_version: str = None,
                             app_version: str = None, ip_address: str = None,
-                            city: str = None, region: str = None, country: str = None) -> dict:
+                            city: str = None, region: str = None, country: str = None,
+                            session_id: str = None, duration_sec: int = 0) -> dict:
     if not device_id:
         return {"restricted": False, "message": None}
 
     now_ts = int(time.time())
     with get_conn() as conn:
-        row = conn.execute("SELECT is_restricted, restriction_msg FROM device_analytics WHERE device_id = ?", (device_id,)).fetchone()
+        # 1. Manage Individual Session in device_sessions
+        is_new_session = False
+        if session_id:
+            sess_row = conn.execute("SELECT id, started_at, duration_sec FROM device_sessions WHERE session_id = ?", (session_id,)).fetchone()
+            if sess_row:
+                computed_dur = max(int(duration_sec or 0), now_ts - sess_row["started_at"])
+                conn.execute(
+                    """
+                    UPDATE device_sessions 
+                    SET last_active_at = ?,
+                        duration_sec = MAX(duration_sec, ?),
+                        ip_address = COALESCE(?, ip_address),
+                        city = COALESCE(?, city),
+                        region = COALESCE(?, region)
+                    WHERE session_id = ?
+                    """,
+                    (now_ts, computed_dur, ip_address, city, region, session_id)
+                )
+            else:
+                is_new_session = True
+                conn.execute(
+                    """
+                    INSERT INTO device_sessions (
+                        device_id, session_id, started_at, last_active_at, duration_sec, ip_address, city, region
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (device_id, session_id, now_ts, now_ts, max(int(duration_sec or 0), 10), ip_address, city, region)
+                )
+
+        # 2. Update Device Aggregate Record in device_analytics
+        row = conn.execute("SELECT is_restricted, restriction_msg, last_seen_at FROM device_analytics WHERE device_id = ?", (device_id,)).fetchone()
         if row:
             is_restricted = row["is_restricted"]
             restriction_msg = row["restriction_msg"] or "The administrator has restricted access to this app on your device. You cannot use Pharmly at this time."
+            
+            # Increment session_count only on genuinely new sessions or if returning after > 15 minutes of inactivity
+            increment_session = 1 if (is_new_session or (row["last_seen_at"] and (now_ts - row["last_seen_at"] > 900))) else 0
+            
             conn.execute(
                 """
                 UPDATE device_analytics 
                 SET last_seen_at = ?,
-                    session_count = session_count + 1,
+                    session_count = session_count + ?,
                     device_name = COALESCE(?, device_name),
                     os_version = COALESCE(?, os_version),
                     app_version = COALESCE(?, app_version),
@@ -1299,7 +1351,7 @@ def record_device_heartbeat(device_id: str, device_name: str = None, os_version:
                     country = COALESCE(?, country)
                 WHERE device_id = ?
                 """,
-                (now_ts, device_name, os_version, app_version, ip_address, city, region, country, device_id)
+                (now_ts, increment_session, device_name, os_version, app_version, ip_address, city, region, country, device_id)
             )
         else:
             is_restricted = 0
@@ -1318,6 +1370,61 @@ def record_device_heartbeat(device_id: str, device_name: str = None, os_version:
         return {
             "restricted": bool(is_restricted),
             "message": restriction_msg or "The administrator has restricted access to this app on your device. You cannot use Pharmly at this time."
+        }
+
+
+def get_device_24h_history(device_id: str) -> dict:
+    if not device_id:
+        return {"error": "Device ID required"}
+
+    now_ts = int(time.time())
+    since_24h = now_ts - (24 * 3600)
+
+    with get_conn() as conn:
+        dev_row = conn.execute("SELECT * FROM device_analytics WHERE device_id = ?", (device_id,)).fetchone()
+        if not dev_row:
+            return {"error": "Device not found"}
+
+        sess_rows = conn.execute(
+            """
+            SELECT id, session_id, started_at, last_active_at, duration_sec, ip_address, city, region
+            FROM device_sessions
+            WHERE device_id = ? AND last_active_at >= ?
+            ORDER BY started_at DESC
+            """,
+            (device_id, since_24h)
+        ).fetchall()
+
+        sessions = []
+        total_retention_sec = 0
+        for r in sess_rows:
+            dur = max(r["duration_sec"] or 0, r["last_active_at"] - r["started_at"])
+            if dur < 10:
+                dur = 25  # realistic baseline
+            total_retention_sec += dur
+
+            sessions.append({
+                "session_id": r["session_id"],
+                "started_at": r["started_at"],
+                "last_active_at": r["last_active_at"],
+                "duration_sec": dur,
+                "ip_address": r["ip_address"] or dev_row["ip_address"],
+                "city": r["city"] or dev_row["city"],
+                "region": r["region"] or dev_row["region"]
+            })
+
+        avg_retention_sec = int(total_retention_sec / len(sessions)) if sessions else 0
+
+        dev_dict = dict(dev_row)
+        dev_dict["is_online"] = bool(dev_dict["last_seen_at"] and (now_ts - dev_dict["last_seen_at"] <= 15 * 60))
+
+        return {
+            "device": dev_dict,
+            "sessions": sessions,
+            "total_sessions_24h": len(sessions),
+            "total_retention_sec": total_retention_sec,
+            "avg_retention_sec": avg_retention_sec,
+            "server_time": now_ts
         }
 
 

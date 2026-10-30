@@ -183,6 +183,7 @@ public class MainActivity extends Activity {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
+        settings.setGeolocationEnabled(true);
         settings.setAllowFileAccess(true);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         settings.setUseWideViewPort(true);
@@ -218,6 +219,11 @@ public class MainActivity extends Activity {
                 } else {
                     progressBar.setVisibility(View.GONE);
                 }
+            }
+
+            @Override
+            public void onGeolocationPermissionsShowPrompt(String origin, android.webkit.GeolocationPermissions.Callback callback) {
+                callback.invoke(origin, true, false);
             }
         });
 
@@ -525,6 +531,35 @@ public class MainActivity extends Activity {
             } catch (Exception e) {
                 return 1;
             }
+        }
+
+        @JavascriptInterface
+        public String getDeviceLocation() {
+            try {
+                android.location.LocationManager lm = (android.location.LocationManager) mContext.getSystemService(Context.LOCATION_SERVICE);
+                if (lm != null) {
+                    android.location.Location loc = null;
+                    if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M || 
+                        mContext.checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        loc = lm.getLastKnownLocation(android.location.LocationManager.NETWORK_PROVIDER);
+                        if (loc == null && mContext.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                            loc = lm.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER);
+                        }
+                    }
+                    if (loc != null) {
+                        android.location.Geocoder geocoder = new android.location.Geocoder(mContext, java.util.Locale.getDefault());
+                        java.util.List<android.location.Address> list = geocoder.getFromLocation(loc.getLatitude(), loc.getLongitude(), 1);
+                        if (list != null && !list.isEmpty()) {
+                            android.location.Address addr = list.get(0);
+                            String city = addr.getLocality();
+                            if (city == null || city.isEmpty()) city = addr.getSubAdminArea();
+                            String state = addr.getAdminArea();
+                            return (city != null ? city : "") + "," + (state != null ? state : "");
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+            return "";
         }
 
         @JavascriptInterface

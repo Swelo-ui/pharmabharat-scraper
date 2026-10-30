@@ -3720,8 +3720,7 @@ document.addEventListener("DOMContentLoaded", () => {
   fetchStats();
   loadDropdowns();
   fetchJobs();
-  sendDeviceHeartbeat();
-  setInterval(sendDeviceHeartbeat, 60000);
+  initSessionAndLocationTracking();
 
   // Handle deep-linked job alerts from Android notifications
   try {
@@ -3832,13 +3831,102 @@ function checkDeviceStatusFast() {
     .catch(() => {});
 }
 
+let currentSessionId = sessionStorage.getItem("pharmly_session_id");
+let sessionStartTime = parseInt(sessionStorage.getItem("pharmly_session_start") || "0", 10);
+let lastActiveTime = Date.now();
+let cachedDeviceGeo = null;
+
+function initSessionAndLocationTracking() {
+  const now = Math.floor(Date.now() / 1000);
+  if (!currentSessionId || !sessionStartTime) {
+    currentSessionId = "sess_" + Date.now().toString(36) + "_" + Math.random().toString(36).substring(2, 6);
+    sessionStartTime = now;
+    sessionStorage.setItem("pharmly_session_id", currentSessionId);
+    sessionStorage.setItem("pharmly_session_start", sessionStartTime.toString());
+  }
+
+  try {
+    const saved = localStorage.getItem("pharmly_device_geo");
+    if (saved) cachedDeviceGeo = JSON.parse(saved);
+  } catch(e) {}
+
+  detectAccurateLocation();
+  sendDeviceHeartbeat();
+  setInterval(sendDeviceHeartbeat, 30000);
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      sendDeviceHeartbeat();
+      lastActiveTime = Date.now();
+    } else {
+      if (Date.now() - lastActiveTime > 15 * 60 * 1000) {
+        currentSessionId = "sess_" + Date.now().toString(36) + "_" + Math.random().toString(36).substring(2, 6);
+        sessionStartTime = Math.floor(Date.now() / 1000);
+        sessionStorage.setItem("pharmly_session_id", currentSessionId);
+        sessionStorage.setItem("pharmly_session_start", sessionStartTime.toString());
+      }
+      sendDeviceHeartbeat();
+    }
+  });
+}
+
+function detectAccurateLocation() {
+  if (window.AndroidNative && typeof window.AndroidNative.getDeviceLocation === "function") {
+    try {
+      const loc = window.AndroidNative.getDeviceLocation();
+      if (loc && loc.includes(",")) {
+        const parts = loc.split(",");
+        if (parts[0] && parts[0].trim()) {
+          cachedDeviceGeo = {
+            city: parts[0].trim(),
+            region: parts[1] ? parts[1].trim() : "Madhya Pradesh"
+          };
+          localStorage.setItem("pharmly_device_geo", JSON.stringify(cachedDeviceGeo));
+          sendDeviceHeartbeat();
+          return;
+        }
+      }
+    } catch(e) {}
+  }
+
+  if ("geolocation" in navigator) {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`)
+          .then(r => r.json())
+          .then(data => {
+            const city = data.city || data.locality || data.principalSubdivision;
+            const region = data.principalSubdivision || "Madhya Pradesh";
+            if (city) {
+              cachedDeviceGeo = { city: city, region: region, lat: lat, lon: lon };
+              localStorage.setItem("pharmly_device_geo", JSON.stringify(cachedDeviceGeo));
+              sendDeviceHeartbeat();
+            }
+          })
+          .catch(() => {});
+      },
+      err => {},
+      { timeout: 7000, maximumAge: 120000 }
+    );
+  }
+}
+
 function sendDeviceHeartbeat() {
   const devId = getPharmlyDeviceId();
+  const now = Math.floor(Date.now() / 1000);
+  const durSec = sessionStartTime ? Math.max(10, now - sessionStartTime) : 10;
+
   const payload = {
     device_id: devId,
+    session_id: currentSessionId,
+    duration_sec: durSec,
     device_name: getPharmlyDeviceName(),
     os_version: getPharmlyOsVersion(),
-    app_version: (window.AndroidNative && typeof window.AndroidNative.getAppVersion === 'function') ? window.AndroidNative.getAppVersion() : "3.7.5"
+    app_version: (window.AndroidNative && typeof window.AndroidNative.getAppVersion === 'function') ? window.AndroidNative.getAppVersion() : "3.8.0",
+    city: cachedDeviceGeo ? cachedDeviceGeo.city : null,
+    region: cachedDeviceGeo ? cachedDeviceGeo.region : null
   };
 
   fetch("/api/telemetry/heartbeat", {
