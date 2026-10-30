@@ -467,5 +467,124 @@ def start_background_scheduler():
 start_background_scheduler()
 
 
+
+
+# ─── Device Telemetry, Live Tracking & Access Control Console ───────────────
+from location_utils import lookup_ip_geo
+import hmac
+import hashlib
+
+ADMIN_PASSWORD = os.getenv("PHARMLY_ADMIN_PASS", "PharmlyAdmin#2026")
+
+def _generate_admin_token():
+    secret = app.secret_key or b"pharmly_secret_telemetry_key_2026"
+    if isinstance(secret, str):
+        secret = secret.encode("utf-8")
+    return hmac.new(secret, ADMIN_PASSWORD.encode("utf-8"), hashlib.sha256).hexdigest()
+
+def _is_admin_authenticated(req):
+    token = None
+    auth_header = req.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+    if not token:
+        token = req.args.get("token") or req.args.get("key")
+    
+    expected_token = _generate_admin_token()
+    if token == expected_token:
+        return True
+    if token and token == ADMIN_PASSWORD:
+        return True
+    return False
+
+@app.route("/api/telemetry/heartbeat", methods=["POST"])
+def api_telemetry_heartbeat():
+    data = request.get_json(silent=True) or {}
+    device_id = data.get("device_id")
+    if not device_id:
+        return jsonify({"status": "error", "message": "Missing device_id"}), 400
+
+    device_name = data.get("device_name")
+    os_version = data.get("os_version")
+    app_version = data.get("app_version")
+
+    # Extract client IP
+    ip = request.headers.get("X-Forwarded-For")
+    if ip:
+        ip = ip.split(",")[0].strip()
+    else:
+        ip = request.remote_addr or ""
+
+    # Geo lookup
+    city = request.headers.get("CF-IPCity")
+    region = request.headers.get("CF-Region")
+    country = request.headers.get("CF-IPCountry")
+    if not city:
+        geo = lookup_ip_geo(ip)
+        city = geo.get("city")
+        region = geo.get("region")
+        country = geo.get("country")
+
+    res = db.record_device_heartbeat(
+        device_id=device_id,
+        device_name=device_name,
+        os_version=os_version,
+        app_version=app_version,
+        ip_address=ip,
+        city=city,
+        region=region,
+        country=country
+    )
+
+    return jsonify({
+        "status": "ok",
+        "restricted": res.get("restricted", False),
+        "message": res.get("message")
+    })
+
+@app.route("/api/device/check-status")
+def api_device_check_status():
+    device_id = request.args.get("device_id")
+    if not device_id:
+        return jsonify({"restricted": False, "message": None})
+    res = db.get_device_status(device_id)
+    return jsonify({
+        "status": "ok",
+        "restricted": res.get("restricted", False),
+        "message": res.get("message")
+    })
+
+@app.route("/admin/devices")
+def admin_devices_page():
+    return render_template("admin_devices.html")
+
+@app.route("/admin/api/login", methods=["POST"])
+def admin_api_login():
+    data = request.get_json(silent=True) or {}
+    pwd = data.get("password") or ""
+    if pwd == ADMIN_PASSWORD:
+        return jsonify({"status": "ok", "token": _generate_admin_token()})
+    return jsonify({"status": "error", "message": "Incorrect passcode"}), 401
+
+@app.route("/admin/api/stats")
+def admin_api_stats():
+    if not _is_admin_authenticated(request):
+        return jsonify({"error": "Unauthorized"}), 401
+    return jsonify(db.get_device_analytics_stats())
+
+@app.route("/admin/api/device/toggle-restriction", methods=["POST"])
+def admin_api_toggle_restriction():
+    if not _is_admin_authenticated(request):
+        return jsonify({"error": "Unauthorized"}), 401
+    data = request.get_json(silent=True) or {}
+    device_id = data.get("device_id")
+    if not device_id:
+        return jsonify({"error": "Missing device_id"}), 400
+    restricted = bool(data.get("restricted", False))
+    reason = data.get("reason")
+    ok = db.set_device_restriction(device_id, restricted, reason)
+    return jsonify({"status": "ok" if ok else "not_found", "device_id": device_id, "restricted": restricted})
+
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

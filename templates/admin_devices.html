@@ -1,0 +1,1141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pharmly Device Telemetry & Access Control Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    :root {
+      --bg: #090d16;
+      --surface: #0f172a;
+      --surface-elevated: #1e293b;
+      --border: rgba(148, 163, 184, 0.12);
+      --border-bright: rgba(148, 163, 184, 0.25);
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-soft: #64748b;
+      --primary: #0d9488;
+      --primary-glow: rgba(13, 148, 136, 0.25);
+      --success: #10b981;
+      --success-glow: rgba(16, 185, 129, 0.2);
+      --danger: #ef4444;
+      --danger-glow: rgba(239, 68, 68, 0.2);
+      --warning: #f59e0b;
+      --radius: 12px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      background: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .header-inner {
+      max-width: 1300px;
+      margin: 0 auto;
+      padding: 14px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--text);
+    }
+
+    .brand-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #0d9488, #059669);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      box-shadow: 0 2px 10px var(--primary-glow);
+    }
+
+    .brand-title {
+      font-size: 1.05rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .brand-subtitle {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .pulse-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--success);
+      background: var(--success-glow);
+      padding: 5px 12px;
+      border-radius: 20px;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+      animation: pulseAnim 2s infinite ease-in-out;
+    }
+
+    @keyframes pulseAnim {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    .btn-header {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-header:hover {
+      background: var(--surface-elevated);
+      color: var(--text);
+      border-color: var(--border-bright);
+    }
+
+    /* ── Main Container ── */
+    main {
+      flex: 1;
+      max-width: 1300px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 24px 20px 60px;
+    }
+
+    /* ── Stats Grid ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .stat-card:hover {
+      border-color: var(--border-bright);
+      transform: translateY(-2px);
+    }
+
+    .stat-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .stat-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .stat-card.primary .stat-icon { color: var(--primary); background: var(--primary-glow); }
+    .stat-card.success .stat-icon { color: var(--success); background: var(--success-glow); }
+    .stat-card.warning .stat-icon { color: var(--warning); background: rgba(245, 158, 11, 0.15); }
+    .stat-card.danger .stat-icon { color: var(--danger); background: var(--danger-glow); }
+
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: var(--text);
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .stat-desc {
+      font-size: 0.75rem;
+      color: var(--text-soft);
+      font-weight: 500;
+    }
+
+    /* ── Controls Row ── */
+    .controls-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .filter-tabs {
+      display: flex;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 4px;
+      gap: 2px;
+      overflow-x: auto;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+
+    .tab-btn:hover { color: var(--text); }
+
+    .tab-btn.active {
+      background: var(--surface-elevated);
+      color: var(--text);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    }
+
+    .tab-badge {
+      background: rgba(255, 255, 255, 0.08);
+      padding: 2px 6px;
+      border-radius: 10px;
+      font-size: 0.7rem;
+    }
+
+    .search-box {
+      display: flex;
+      align-items: center;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0 14px;
+      width: 100%;
+      max-width: 320px;
+      height: 40px;
+      gap: 10px;
+    }
+
+    .search-box:focus-within {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px var(--primary-glow);
+    }
+
+    .search-box input {
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-size: 0.85rem;
+      width: 100%;
+    }
+
+    .search-box input::placeholder { color: var(--text-soft); }
+
+    /* ── Devices Table & Cards ── */
+    .table-container {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.85rem;
+    }
+
+    th {
+      background: rgba(15, 23, 42, 0.95);
+      color: var(--text-muted);
+      font-size: 0.74rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+      color: var(--text);
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    tr:hover td { background: rgba(255, 255, 255, 0.02); }
+
+    /* ── Device Row Badges ── */
+    .device-title {
+      font-weight: 700;
+      font-size: 0.92rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .device-sub {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .badge-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+
+    .badge-status.online {
+      background: var(--success-glow);
+      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .badge-status.idle {
+      background: rgba(148, 163, 184, 0.1);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+
+    .badge-status.restricted {
+      background: var(--danger-glow);
+      color: var(--danger);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .meta-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    /* ── Action Buttons ── */
+    .btn-action {
+      border: none;
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-restrict {
+      background: rgba(239, 68, 68, 0.12);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .btn-restrict:hover {
+      background: #ef4444;
+      color: #ffffff;
+      box-shadow: 0 2px 8px var(--danger-glow);
+    }
+
+    .btn-unrestrict {
+      background: rgba(16, 185, 129, 0.12);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-unrestrict:hover {
+      background: #10b981;
+      color: #ffffff;
+      box-shadow: 0 2px 8px var(--success-glow);
+    }
+
+    /* ── Responsive Mobile Cards ── */
+    .mobile-cards { display: none; }
+
+    @media (max-width: 900px) {
+      .table-container table { display: none; }
+      .mobile-cards { display: flex; flex-direction: column; gap: 12px; }
+      .mobile-device-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 16px;
+      }
+      .mobile-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+      .mobile-card-details {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        font-size: 0.78rem;
+        color: var(--text-muted);
+        margin-bottom: 14px;
+        padding: 10px;
+        background: rgba(0,0,0,0.2);
+        border-radius: 8px;
+      }
+      .mobile-card-actions {
+        display: flex;
+        justify-content: flex-end;
+      }
+      .search-box { max-width: 100%; }
+    }
+
+    /* ── Modal Password Gate ── */
+    #auth-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #090d16;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .auth-card {
+      background: var(--surface);
+      border: 1px solid var(--border-bright);
+      border-radius: 16px;
+      padding: 32px 28px;
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    }
+
+    .auth-icon-wrap {
+      width: 56px;
+      height: 56px;
+      border-radius: 14px;
+      background: var(--primary-glow);
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 18px;
+      border: 1px solid rgba(13, 148, 136, 0.3);
+    }
+
+    .auth-title {
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .auth-subtitle {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+    }
+
+    .auth-input-wrap {
+      position: relative;
+      margin-bottom: 16px;
+    }
+
+    .auth-input-wrap input {
+      width: 100%;
+      background: var(--surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 42px 12px 14px;
+      color: var(--text);
+      font-size: 0.95rem;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .auth-input-wrap input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-glow);
+    }
+
+    .toggle-pass-btn {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--text-soft);
+      cursor: pointer;
+    }
+
+    .btn-login {
+      width: 100%;
+      background: var(--primary);
+      border: none;
+      color: #ffffff;
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 0.92rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 2px 10px var(--primary-glow);
+      transition: all 0.2s;
+    }
+
+    .btn-login:hover {
+      background: #0f766e;
+    }
+
+    .auth-error {
+      color: var(--danger);
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-top: 12px;
+      display: none;
+    }
+
+    /* ── Empty State ── */
+    .empty-state {
+      padding: 60px 20px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+
+    .empty-icon {
+      width: 48px;
+      height: 48px;
+      color: var(--text-soft);
+      margin: 0 auto 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Password Authentication Gate Overlay -->
+  <div id="auth-overlay">
+    <div class="auth-card">
+      <div class="auth-icon-wrap">
+        <i data-lucide="shield" style="width:28px;height:28px;"></i>
+      </div>
+      <h2 class="auth-title">Admin Access Control</h2>
+      <p class="auth-subtitle">Enter master passcode to view live device telemetry & manage restrictions.</p>
+      <form id="auth-form" onsubmit="handleLogin(event)">
+        <div class="auth-input-wrap">
+          <input type="password" id="admin-pass-input" placeholder="Enter Admin Passcode" required autocomplete="current-password">
+          <button type="button" class="toggle-pass-btn" onclick="togglePasswordVisibility()">
+            <i data-lucide="eye" id="pass-eye-icon" style="width:16px;height:16px;"></i>
+          </button>
+        </div>
+        <button type="submit" class="btn-login" id="btn-login-submit">
+          <i data-lucide="lock" style="width:16px;height:16px;"></i> Unlock Console
+        </button>
+        <div class="auth-error" id="auth-error-msg">Incorrect passcode. Please try again.</div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header>
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-icon">
+          <i data-lucide="activity" style="width:22px;height:22px;"></i>
+        </div>
+        <div class="brand-title">
+          <span>Pharmly Console</span>
+          <span class="brand-subtitle">Telemetry & Killswitch</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div class="pulse-indicator">
+          <div class="pulse-dot"></div>
+          <span>Live Telemetry</span>
+        </div>
+        <button class="btn-header" onclick="loadDashboardData()" title="Refresh Telemetry">
+          <i data-lucide="refresh-cw" id="refresh-icon" style="width:14px;height:14px;"></i>
+          <span style="display:none; @media(min-width:600px){display:inline;}">Sync</span>
+        </button>
+        <button class="btn-header" onclick="handleLogout()" title="Logout">
+          <i data-lucide="log-out" style="width:14px;height:14px;"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main>
+    <!-- Top Stats Grid -->
+    <div class="stats-grid">
+      <div class="stat-card primary">
+        <div class="stat-header">
+          <span>Total Installs</span>
+          <div class="stat-icon"><i data-lucide="smartphone" style="width:18px;height:18px;"></i></div>
+        </div>
+        <div class="stat-value" id="stat-total">0</div>
+        <div class="stat-desc">Unique devices registered</div>
+      </div>
+
+      <div class="stat-card success">
+        <div class="stat-header">
+          <span>Online Now</span>
+          <div class="stat-icon"><i data-lucide="zap" style="width:18px;height:18px;"></i></div>
+        </div>
+        <div class="stat-value" id="stat-online">0</div>
+        <div class="stat-desc">Active in past 15 minutes</div>
+      </div>
+
+      <div class="stat-card warning">
+        <div class="stat-header">
+          <span>Active Today (24h)</span>
+          <div class="stat-icon"><i data-lucide="calendar" style="width:18px;height:18px;"></i></div>
+        </div>
+        <div class="stat-value" id="stat-today">0</div>
+        <div class="stat-desc">Daily Active Users (DAU)</div>
+      </div>
+
+      <div class="stat-card danger">
+        <div class="stat-header">
+          <span>Restricted Devices</span>
+          <div class="stat-icon"><i data-lucide="shield-alert" style="width:18px;height:18px;"></i></div>
+        </div>
+        <div class="stat-value" id="stat-restricted">0</div>
+        <div class="stat-desc">Blocked from accessing app</div>
+      </div>
+    </div>
+
+    <!-- Filters & Search Row -->
+    <div class="controls-row">
+      <div class="filter-tabs">
+        <button class="tab-btn active" data-filter="all" onclick="setFilter('all')">
+          <i data-lucide="smartphone" style="width:14px;height:14px;"></i> All <span class="tab-badge" id="tab-all-count">0</span>
+        </button>
+        <button class="tab-btn" data-filter="online" onclick="setFilter('online')">
+          <i data-lucide="zap" style="width:14px;height:14px;"></i> Online <span class="tab-badge" id="tab-online-count">0</span>
+        </button>
+        <button class="tab-btn" data-filter="today" onclick="setFilter('today')">
+          <i data-lucide="clock" style="width:14px;height:14px;"></i> Today <span class="tab-badge" id="tab-today-count">0</span>
+        </button>
+        <button class="tab-btn" data-filter="restricted" onclick="setFilter('restricted')">
+          <i data-lucide="shield-alert" style="width:14px;height:14px;"></i> Restricted <span class="tab-badge" id="tab-restricted-count">0</span>
+        </button>
+      </div>
+
+      <div class="search-box">
+        <i data-lucide="search" style="width:16px;height:16px;color:var(--text-soft);"></i>
+        <input type="text" id="search-input" placeholder="Search device, city, IP..." oninput="handleSearch(this.value)">
+      </div>
+    </div>
+
+    <!-- PC Table View -->
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Device & OS</th>
+            <th>Location</th>
+            <th>App Version</th>
+            <th>First Installed</th>
+            <th>Last Active</th>
+            <th>Sessions</th>
+            <th>Status</th>
+            <th style="text-align:right;">Access Control</th>
+          </tr>
+        </thead>
+        <tbody id="devices-table-body">
+          <!-- Populated dynamically -->
+        </tbody>
+      </table>
+
+      <!-- Mobile Cards View -->
+      <div class="mobile-cards" id="devices-mobile-cards">
+        <!-- Populated dynamically on mobile screens -->
+      </div>
+
+      <div class="empty-state" id="empty-state" style="display:none;">
+        <div class="empty-icon"><i data-lucide="smartphone-off" style="width:48px;height:48px;"></i></div>
+        <div style="font-weight:700; font-size:1rem; color:var(--text); margin-bottom:4px;">No Devices Found</div>
+        <div style="font-size:0.82rem;">No devices match the selected filter or search term.</div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let allDevices = [];
+    let currentFilter = 'all';
+    let searchQuery = '';
+    let autoRefreshTimer = null;
+
+    // Check Authentication on Page Load
+    document.addEventListener("DOMContentLoaded", () => {
+      const token = localStorage.getItem("pharmly_admin_token");
+      if (token) {
+        document.getElementById("auth-overlay").style.display = "none";
+        loadDashboardData();
+        startAutoRefresh();
+      } else {
+        document.getElementById("auth-overlay").style.display = "flex";
+      }
+      if (window.lucide) lucide.createIcons();
+    });
+
+    function togglePasswordVisibility() {
+      const input = document.getElementById("admin-pass-input");
+      const icon = document.getElementById("pass-eye-icon");
+      if (input.type === "password") {
+        input.type = "text";
+        icon.setAttribute("data-lucide", "eye-off");
+      } else {
+        input.type = "password";
+        icon.setAttribute("data-lucide", "eye");
+      }
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function handleLogin(e) {
+      e.preventDefault();
+      const pass = document.getElementById("admin-pass-input").value;
+      const errorMsg = document.getElementById("auth-error-msg");
+      const submitBtn = document.getElementById("btn-login-submit");
+
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i data-lucide="loader-2" style="width:16px;height:16px;animation:spin 1s linear infinite;"></i> Verifying...';
+      if (window.lucide) lucide.createIcons();
+
+      fetch("/admin/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: pass })
+      })
+      .then(r => r.json())
+      .then(data => {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i data-lucide="lock" style="width:16px;height:16px;"></i> Unlock Console';
+        if (window.lucide) lucide.createIcons();
+
+        if (data.status === "ok" && data.token) {
+          localStorage.setItem("pharmly_admin_token", data.token);
+          document.getElementById("auth-overlay").style.display = "none";
+          loadDashboardData();
+          startAutoRefresh();
+        } else {
+          errorMsg.style.display = "block";
+          errorMsg.textContent = data.message || "Invalid passcode.";
+        }
+      })
+      .catch(() => {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i data-lucide="lock" style="width:16px;height:16px;"></i> Unlock Console';
+        if (window.lucide) lucide.createIcons();
+        errorMsg.style.display = "block";
+        errorMsg.textContent = "Connection error. Please try again.";
+      });
+    }
+
+    function handleLogout() {
+      localStorage.removeItem("pharmly_admin_token");
+      clearInterval(autoRefreshTimer);
+      document.getElementById("auth-overlay").style.display = "flex";
+      document.getElementById("admin-pass-input").value = "";
+      document.getElementById("auth-error-msg").style.display = "none";
+    }
+
+    function startAutoRefresh() {
+      clearInterval(autoRefreshTimer);
+      autoRefreshTimer = setInterval(loadDashboardData, 15000); // 15s live refresh
+    }
+
+    function loadDashboardData() {
+      const token = localStorage.getItem("pharmly_admin_token");
+      if (!token) return;
+
+      const refreshIcon = document.getElementById("refresh-icon");
+      if (refreshIcon) refreshIcon.style.animation = "spin 0.8s linear infinite";
+
+      fetch("/admin/api/stats", {
+        headers: { "Authorization": `Bearer ${token}` }
+      })
+      .then(r => {
+        if (r.status === 401 || r.status === 403) {
+          handleLogout();
+          throw new Error("Unauthorized");
+        }
+        return r.json();
+      })
+      .then(data => {
+        if (refreshIcon) refreshIcon.style.animation = "";
+        allDevices = data.devices || [];
+
+        // Update metrics
+        document.getElementById("stat-total").textContent = data.total_devices || 0;
+        document.getElementById("stat-online").textContent = data.active_now || 0;
+        document.getElementById("stat-today").textContent = data.active_today || 0;
+        document.getElementById("stat-restricted").textContent = data.restricted_count || 0;
+
+        // Update Tab Counts
+        document.getElementById("tab-all-count").textContent = data.total_devices || 0;
+        document.getElementById("tab-online-count").textContent = data.active_now || 0;
+        document.getElementById("tab-today-count").textContent = data.active_today || 0;
+        document.getElementById("tab-restricted-count").textContent = data.restricted_count || 0;
+
+        renderFilteredDevices();
+      })
+      .catch(() => {
+        if (refreshIcon) refreshIcon.style.animation = "";
+      });
+    }
+
+    function setFilter(filter) {
+      currentFilter = filter;
+      document.querySelectorAll(".tab-btn").forEach(btn => {
+        btn.classList.toggle("active", btn.getAttribute("data-filter") === filter);
+      });
+      renderFilteredDevices();
+    }
+
+    function handleSearch(q) {
+      searchQuery = (q || "").toLowerCase().trim();
+      renderFilteredDevices();
+    }
+
+    function formatTimeAgo(ts) {
+      if (!ts) return "Never";
+      const now = Math.floor(Date.now() / 1000);
+      const diff = now - ts;
+      if (diff < 60) return "Just now";
+      if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+      if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+      return new Date(ts * 1000).toLocaleDateString('en-IN', { day:'numeric', month:'short' });
+    }
+
+    function formatExactTime(ts) {
+      if (!ts) return "";
+      return new Date(ts * 1000).toLocaleString('en-IN', {
+        day: 'numeric', month: 'short', year: 'numeric',
+        hour: 'numeric', minute: '2-digit', hour12: true
+      });
+    }
+
+    function renderFilteredDevices() {
+      const now = Math.floor(Date.now() / 1000);
+      const filtered = allDevices.filter(d => {
+        // Tab filter
+        if (currentFilter === 'online' && !d.is_online) return false;
+        if (currentFilter === 'today' && (!d.last_seen_at || (now - d.last_seen_at > 86400))) return false;
+        if (currentFilter === 'restricted' && !d.is_restricted) return false;
+
+        // Search query filter
+        if (searchQuery) {
+          const text = [
+            d.device_name || '',
+            d.os_version || '',
+            d.city || '',
+            d.region || '',
+            d.ip_address || '',
+            d.device_id || ''
+          ].join(' ').toLowerCase();
+          if (!text.includes(searchQuery)) return false;
+        }
+
+        return true;
+      });
+
+      const tableBody = document.getElementById("devices-table-body");
+      const mobileCards = document.getElementById("devices-mobile-cards");
+      const emptyState = document.getElementById("empty-state");
+
+      if (filtered.length === 0) {
+        tableBody.innerHTML = "";
+        mobileCards.innerHTML = "";
+        emptyState.style.display = "block";
+        return;
+      }
+      emptyState.style.display = "none";
+
+      // ── PC Table Render ──
+      tableBody.innerHTML = filtered.map(d => {
+        const isOnline = d.is_online;
+        const isRestricted = d.is_restricted;
+        const loc = [d.city, d.region].filter(Boolean).join(", ") || d.country || "India";
+
+        return `
+          <tr>
+            <td>
+              <div class="device-title">
+                <i data-lucide="smartphone" style="width:16px;height:16px;color:var(--text-muted);"></i>
+                <span>${escapeHtml(d.device_name || "Unknown Device")}</span>
+              </div>
+              <div class="device-sub">
+                <span>${escapeHtml(d.os_version || "Android")}</span> • 
+                <span title="${escapeHtml(d.device_id)}">${escapeHtml(d.device_id.substring(0, 14))}...</span>
+              </div>
+            </td>
+            <td>
+              <div class="meta-tag">
+                <i data-lucide="map-pin" style="width:13px;height:13px;color:var(--primary);"></i>
+                <span>${escapeHtml(loc)}</span>
+              </div>
+              <div style="font-size:0.7rem; color:var(--text-soft); font-family:monospace; margin-top:2px;">
+                ${escapeHtml(d.ip_address || "")}
+              </div>
+            </td>
+            <td>
+              <span class="meta-tag">
+                <i data-lucide="tag" style="width:12px;height:12px;color:var(--text-soft);"></i>
+                ${escapeHtml(d.app_version || "3.7.5")}
+              </span>
+            </td>
+            <td>
+              <span style="font-size:0.78rem; color:var(--text-muted);" title="${formatExactTime(d.first_seen_at)}">
+                ${formatTimeAgo(d.first_seen_at)}
+              </span>
+            </td>
+            <td>
+              <span style="font-size:0.82rem; font-weight:600; color:var(--text);" title="${formatExactTime(d.last_seen_at)}">
+                ${formatTimeAgo(d.last_seen_at)}
+              </span>
+              <div style="font-size:0.7rem; color:var(--text-soft);">${formatExactTime(d.last_seen_at).split(',')[1] || ''}</div>
+            </td>
+            <td>
+              <span style="font-weight:700; font-size:0.85rem; color:var(--text);">
+                ${d.session_count || 1}
+              </span>
+            </td>
+            <td>
+              ${isRestricted ? `
+                <span class="badge-status restricted">
+                  <i data-lucide="shield-alert" style="width:12px;height:12px;"></i> Restricted
+                </span>
+              ` : (isOnline ? `
+                <span class="badge-status online">
+                  <span class="pulse-dot"></span> Online
+                </span>
+              ` : `
+                <span class="badge-status idle">
+                  <i data-lucide="clock" style="width:11px;height:11px;"></i> Idle
+                </span>
+              `)}
+            </td>
+            <td style="text-align:right;">
+              ${isRestricted ? `
+                <button class="btn-action btn-unrestrict" onclick="toggleDeviceAccess('${escapeHtml(d.device_id)}', false)">
+                  <i data-lucide="shield-check" style="width:13px;height:13px;"></i> Unrestrict
+                </button>
+              ` : `
+                <button class="btn-action btn-restrict" onclick="toggleDeviceAccess('${escapeHtml(d.device_id)}', true)">
+                  <i data-lucide="shield-alert" style="width:13px;height:13px;"></i> Restrict
+                </button>
+              `}
+            </td>
+          </tr>
+        `;
+      }).join("");
+
+      // ── Mobile Cards Render ──
+      mobileCards.innerHTML = filtered.map(d => {
+        const isOnline = d.is_online;
+        const isRestricted = d.is_restricted;
+        const loc = [d.city, d.region].filter(Boolean).join(", ") || d.country || "India";
+
+        return `
+          <div class="mobile-device-card">
+            <div class="mobile-card-header">
+              <div>
+                <div class="device-title">
+                  <i data-lucide="smartphone" style="width:16px;height:16px;color:var(--text-muted);"></i>
+                  <span>${escapeHtml(d.device_name || "Unknown Device")}</span>
+                </div>
+                <div class="device-sub">${escapeHtml(d.os_version || "Android")} • ${escapeHtml(d.device_id.substring(0, 12))}...</div>
+              </div>
+              <div>
+                ${isRestricted ? `
+                  <span class="badge-status restricted"><i data-lucide="shield-alert" style="width:11px;height:11px;"></i> Blocked</span>
+                ` : (isOnline ? `
+                  <span class="badge-status online"><span class="pulse-dot"></span> Online</span>
+                ` : `
+                  <span class="badge-status idle"><i data-lucide="clock" style="width:11px;height:11px;"></i> Idle</span>
+                `)}
+              </div>
+            </div>
+
+            <div class="mobile-card-details">
+              <div>
+                <div style="font-size:0.7rem;color:var(--text-soft);">Location</div>
+                <div style="color:var(--text);font-weight:600;"><i data-lucide="map-pin" style="width:11px;height:11px;vertical-align:middle;color:var(--primary);"></i> ${escapeHtml(loc)}</div>
+              </div>
+              <div>
+                <div style="font-size:0.7rem;color:var(--text-soft);">App Version</div>
+                <div style="color:var(--text);font-weight:600;"><i data-lucide="tag" style="width:11px;height:11px;vertical-align:middle;"></i> ${escapeHtml(d.app_version || "3.7.5")}</div>
+              </div>
+              <div>
+                <div style="font-size:0.7rem;color:var(--text-soft);">Last Active</div>
+                <div style="color:var(--text);font-weight:600;"><i data-lucide="clock" style="width:11px;height:11px;vertical-align:middle;"></i> ${formatTimeAgo(d.last_seen_at)}</div>
+              </div>
+              <div>
+                <div style="font-size:0.7rem;color:var(--text-soft);">Total Opens</div>
+                <div style="color:var(--text);font-weight:600;"><i data-lucide="repeat" style="width:11px;height:11px;vertical-align:middle;"></i> ${d.session_count || 1} times</div>
+              </div>
+            </div>
+
+            <div class="mobile-card-actions">
+              ${isRestricted ? `
+                <button class="btn-action btn-unrestrict" style="width:100%;justify-content:center;" onclick="toggleDeviceAccess('${escapeHtml(d.device_id)}', false)">
+                  <i data-lucide="shield-check" style="width:14px;height:14px;"></i> Lift Restriction
+                </button>
+              ` : `
+                <button class="btn-action btn-restrict" style="width:100%;justify-content:center;" onclick="toggleDeviceAccess('${escapeHtml(d.device_id)}', true)">
+                  <i data-lucide="shield-alert" style="width:14px;height:14px;"></i> Restrict This Device
+                </button>
+              `}
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function toggleDeviceAccess(deviceId, restrict) {
+      const token = localStorage.getItem("pharmly_admin_token");
+      if (!token) return;
+
+      const actionName = restrict ? "RESTRICT" : "UNRESTRICT";
+      const confirmPrompt = restrict 
+        ? `Are you sure you want to RESTRICT this device?\n\nThe app will immediately be blocked on this phone with a restriction notice.`
+        : `Unrestrict this device and restore full app access?`;
+
+      if (!confirm(confirmPrompt)) return;
+
+      fetch("/admin/api/device/toggle-restriction", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          device_id: deviceId,
+          restricted: restrict,
+          reason: "The administrator has restricted access to this app on your device. You cannot use Pharmly at this time."
+        })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === "ok") {
+          // Immediately update local state
+          const dev = allDevices.find(d => d.device_id === deviceId);
+          if (dev) {
+            dev.is_restricted = restrict ? 1 : 0;
+          }
+          loadDashboardData();
+        } else {
+          alert(data.message || "Operation failed.");
+        }
+      })
+      .catch(() => alert("Network error. Could not update restriction."));
+    }
+
+    function escapeHtml(str) {
+      if (!str) return "";
+      return str.replace(/[&<>"']/g, m => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+      })[m]);
+    }
+  </script>
+</body>
+</html>

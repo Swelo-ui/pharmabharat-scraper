@@ -403,6 +403,28 @@ def init_db():
         conn.execute("CREATE INDEX IF NOT EXISTS idx_active_cat_fresher ON jobs(is_active, category, is_fresher_friendly)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_source ON jobs(source)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_posted_ts ON jobs(posted_timestamp)")
+
+        # Device analytics & live access control table
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS device_analytics (
+            device_id       TEXT PRIMARY KEY,
+            device_name     TEXT,
+            os_version      TEXT,
+            app_version     TEXT,
+            ip_address      TEXT,
+            city            TEXT,
+            region          TEXT,
+            country         TEXT,
+            first_seen_at   INTEGER,
+            last_seen_at    INTEGER,
+            session_count   INTEGER DEFAULT 1,
+            is_restricted   INTEGER DEFAULT 0,
+            restriction_msg TEXT,
+            notes           TEXT
+        );
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_device_last_seen ON device_analytics(last_seen_at);")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_device_restricted ON device_analytics(is_restricted);")
     # Auto-extract email/phone, banner images, posted timestamps & company names for existing jobs
     backfill_contacts()
     backfill_banners()
@@ -1247,3 +1269,119 @@ def backfill_apply_links():
                     conn.execute("UPDATE jobs SET apply_link = ? WHERE slug = ?", (chosen_link, r["slug"]))
     except Exception as e:
         log.warning("backfill_apply_links failed: %s", e)
+
+
+# ── Device Analytics & Real-Time Access Control ──────────────────
+
+def record_device_heartbeat(device_id: str, device_name: str = None, os_version: str = None,
+                            app_version: str = None, ip_address: str = None,
+                            city: str = None, region: str = None, country: str = None) -> dict:
+    if not device_id:
+        return {"restricted": False, "message": None}
+
+    now_ts = int(time.time())
+    with get_conn() as conn:
+        row = conn.execute("SELECT is_restricted, restriction_msg FROM device_analytics WHERE device_id = ?", (device_id,)).fetchone()
+        if row:
+            is_restricted = row["is_restricted"]
+            restriction_msg = row["restriction_msg"] or "The administrator has restricted access to this app on your device. You cannot use Pharmly at this time."
+            conn.execute(
+                """
+                UPDATE device_analytics 
+                SET last_seen_at = ?,
+                    session_count = session_count + 1,
+                    device_name = COALESCE(?, device_name),
+                    os_version = COALESCE(?, os_version),
+                    app_version = COALESCE(?, app_version),
+                    ip_address = COALESCE(?, ip_address),
+                    city = COALESCE(?, city),
+                    region = COALESCE(?, region),
+                    country = COALESCE(?, country)
+                WHERE device_id = ?
+                """,
+                (now_ts, device_name, os_version, app_version, ip_address, city, region, country, device_id)
+            )
+        else:
+            is_restricted = 0
+            restriction_msg = None
+            conn.execute(
+                """
+                INSERT INTO device_analytics (
+                    device_id, device_name, os_version, app_version, ip_address,
+                    city, region, country, first_seen_at, last_seen_at, session_count,
+                    is_restricted, restriction_msg
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, NULL)
+                """,
+                (device_id, device_name, os_version, app_version, ip_address, city, region, country, now_ts, now_ts)
+            )
+
+        return {
+            "restricted": bool(is_restricted),
+            "message": restriction_msg or "The administrator has restricted access to this app on your device. You cannot use Pharmly at this time."
+        }
+
+
+def get_device_status(device_id: str) -> dict:
+    if not device_id:
+        return {"restricted": False, "message": None}
+    with get_conn() as conn:
+        row = conn.execute("SELECT is_restricted, restriction_msg FROM device_analytics WHERE device_id = ?", (device_id,)).fetchone()
+        if row:
+            return {
+                "restricted": bool(row["is_restricted"]),
+                "message": row["restriction_msg"] or "The administrator has restricted access to this app on your device. You cannot use Pharmly at this time."
+            }
+        return {"restricted": False, "message": None}
+
+
+def set_device_restriction(device_id: str, is_restricted: bool, reason: str = None) -> bool:
+    if not device_id:
+        return False
+    msg = reason if reason else "The administrator has restricted access to this app on your device. You cannot use Pharmly at this time."
+    with get_conn() as conn:
+        res = conn.execute(
+            "UPDATE device_analytics SET is_restricted = ?, restriction_msg = ? WHERE device_id = ?",
+            (1 if is_restricted else 0, msg if is_restricted else None, device_id)
+        )
+        return res.rowcount > 0
+
+
+def get_device_analytics_stats() -> dict:
+    now_ts = int(time.time())
+    active_now_threshold = now_ts - (15 * 60)      # last 15 minutes
+    active_today_threshold = now_ts - (24 * 3600)   # last 24 hours
+    active_7d_threshold = now_ts - (7 * 24 * 3600)  # last 7 days
+
+    with get_conn() as conn:
+        total = conn.execute("SELECT COUNT(*) as c FROM device_analytics").fetchone()["c"]
+        active_now = conn.execute("SELECT COUNT(*) as c FROM device_analytics WHERE last_seen_at >= ?", (active_now_threshold,)).fetchone()["c"]
+        active_today = conn.execute("SELECT COUNT(*) as c FROM device_analytics WHERE last_seen_at >= ?", (active_today_threshold,)).fetchone()["c"]
+        active_7d = conn.execute("SELECT COUNT(*) as c FROM device_analytics WHERE last_seen_at >= ?", (active_7d_threshold,)).fetchone()["c"]
+        restricted = conn.execute("SELECT COUNT(*) as c FROM device_analytics WHERE is_restricted = 1").fetchone()["c"]
+
+        rows = conn.execute(
+            """
+            SELECT device_id, device_name, os_version, app_version, ip_address,
+                   city, region, country, first_seen_at, last_seen_at,
+                   session_count, is_restricted, restriction_msg
+            FROM device_analytics
+            ORDER BY last_seen_at DESC
+            LIMIT 500
+            """
+        ).fetchall()
+
+        devices = []
+        for r in rows:
+            d = dict(r)
+            d["is_online"] = bool(d["last_seen_at"] and (now_ts - d["last_seen_at"] <= 15 * 60))
+            devices.append(d)
+
+        return {
+            "total_devices": total,
+            "active_now": active_now,
+            "active_today": active_today,
+            "active_7d": active_7d,
+            "restricted_count": restricted,
+            "devices": devices,
+            "server_time": now_ts
+        }

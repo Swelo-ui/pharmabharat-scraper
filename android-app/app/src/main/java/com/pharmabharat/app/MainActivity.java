@@ -1,6 +1,8 @@
 package com.pharmabharat.app;
 
 import android.app.Activity;
+import android.os.Build;
+import android.provider.Settings;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -661,5 +663,65 @@ public class MainActivity extends Activity {
                 return 1;
             }
         }
+
+        @JavascriptInterface
+        public String getDeviceId() {
+            try {
+                SharedPreferences prefs = mContext.getSharedPreferences("pharmly_device_prefs", Context.MODE_PRIVATE);
+                String id = prefs.getString("unique_device_id", null);
+                if (id == null || id.isEmpty()) {
+                    String androidId = android.provider.Settings.Secure.getString(mContext.getContentResolver(), android.provider.Settings.Secure.ANDROID_ID);
+                    if (androidId != null && !androidId.isEmpty() && !"9774d56d682e549c".equals(androidId)) {
+                        id = "and-" + androidId;
+                    } else {
+                        id = "dev-" + java.util.UUID.randomUUID().toString().substring(0, 12);
+                    }
+                    prefs.edit().putString("unique_device_id", id).apply();
+                }
+                return id;
+            } catch (Exception e) {
+                return "dev-unknown";
+            }
+        }
+
+        @JavascriptInterface
+        public String getDeviceName() {
+            try {
+                String manufacturer = android.os.Build.MANUFACTURER;
+                String model = android.os.Build.MODEL;
+                if (manufacturer != null && model != null && model.toLowerCase().startsWith(manufacturer.toLowerCase())) {
+                    return capitalize(model);
+                } else if (manufacturer != null && model != null) {
+                    return capitalize(manufacturer) + " " + model;
+                } else {
+                    return "Android Device";
+                }
+            } catch (Exception e) {
+                return "Android Device";
+            }
+        }
+
+        private String capitalize(String s) {
+            if (s == null || s.length() == 0) return "";
+            char first = s.charAt(0);
+            if (Character.isUpperCase(first)) return s;
+            return Character.toUpperCase(first) + s.substring(1);
+        }
+
+        @JavascriptInterface
+        public String getOsVersion() {
+            return "Android " + android.os.Build.VERSION.RELEASE + " (API " + android.os.Build.VERSION.SDK_INT + ")";
+        }
+
+        @JavascriptInterface
+        public String getAppVersion() {
+            try {
+                android.content.pm.PackageInfo pInfo = mContext.getPackageManager().getPackageInfo(mContext.getPackageName(), 0);
+                return pInfo.versionName;
+            } catch (Exception e) {
+                return "3.7.5";
+            }
+        }
+
     }
 }

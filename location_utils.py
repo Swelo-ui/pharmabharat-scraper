@@ -295,3 +295,29 @@ def get_aliases_for_query(query):
             if q_lower in alias or alias in q_lower:
                 return cluster["aliases"]
     return [q_lower]
+
+
+# ── Lightweight IP Geolocation Lookup ────────────────────────────
+_IP_GEO_CACHE = {}
+
+def lookup_ip_geo(ip: str):
+    if not ip or ip.startswith("127.") or ip.startswith("192.168.") or ip.startswith("10.") or ip == "localhost":
+        return {"city": "Local Dev", "region": "Local", "country": "Local"}
+    if ip in _IP_GEO_CACHE:
+        return _IP_GEO_CACHE[ip]
+    try:
+        import requests
+        resp = requests.get(f"http://ip-api.com/json/{ip}?fields=status,country,regionName,city", timeout=2.0)
+        if resp.status_code == 200:
+            data = resp.json()
+            if data.get("status") == "success":
+                geo = {
+                    "city": data.get("city") or "Unknown City",
+                    "region": data.get("regionName") or "",
+                    "country": data.get("country") or "India"
+                }
+                _IP_GEO_CACHE[ip] = geo
+                return geo
+    except Exception:
+        pass
+    return {"city": "India", "region": "", "country": "India"}

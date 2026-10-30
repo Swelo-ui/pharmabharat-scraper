@@ -1746,6 +1746,26 @@
   </div>
 </div>
 
+<!-- Device Access Restriction Full-Screen Barrier (Pure Lucide Icons, Zero Emojis) -->
+<div id="device-restriction-screen" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:#090d16; z-index:9999999; flex-direction:column; align-items:center; justify-content:center; padding:24px; text-align:center; box-sizing:border-box;">
+  <div style="width:72px; height:72px; border-radius:20px; background:rgba(239, 68, 68, 0.12); border:1px solid rgba(239, 68, 68, 0.3); display:flex; align-items:center; justify-content:center; margin-bottom:20px; box-shadow:0 0 24px rgba(239, 68, 68, 0.2);">
+    <i data-lucide="shield-alert" style="width:36px; height:36px; color:#ef4444;"></i>
+  </div>
+  <h2 style="color:#ffffff; font-size:1.35rem; font-weight:800; letter-spacing:-0.02em; margin:0 0 10px 0;">Access Restricted</h2>
+  <p id="restriction-screen-msg" style="color:#94a3b8; font-size:0.92rem; line-height:1.6; max-width:400px; margin:0 0 24px 0;">
+    The administrator has restricted access to this app on your device. You cannot use Pharmly at this time.
+  </p>
+  <div style="display:inline-flex; align-items:center; gap:8px; font-size:0.75rem; color:#64748b; font-family:monospace; background:rgba(255,255,255,0.04); padding:8px 16px; border-radius:8px; border:1px solid rgba(255,255,255,0.08);">
+    <i data-lucide="smartphone" style="width:13px; height:13px;"></i>
+    <span>ID: <span id="restriction-screen-devid"></span></span>
+  </div>
+  <div style="margin-top:24px; display:flex; align-items:center; gap:6px; font-size:0.75rem; color:#475569;">
+    <i data-lucide="refresh-cw" style="width:12px; height:12px; animation:spin 2s linear infinite;"></i>
+    <span>Checking authorization status in real-time...</span>
+  </div>
+</div>
+
+
 <!-- Sort Picker Bottom Sheet Modal (Lucide Icons for sorting options) -->
 <div class="modal-overlay" id="sort-modal">
   <div class="modal-card category-sheet">
@@ -3700,6 +3720,8 @@ document.addEventListener("DOMContentLoaded", () => {
   fetchStats();
   loadDropdowns();
   fetchJobs();
+  sendDeviceHeartbeat();
+  setInterval(sendDeviceHeartbeat, 60000);
 
   // Handle deep-linked job alerts from Android notifications
   try {
@@ -3712,6 +3734,129 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   } catch (e) {}
 });
+
+// ── Device Telemetry & Real-Time Access Restriction Enforcer ──
+let restrictionPollTimer = null;
+
+function getPharmlyDeviceId() {
+  try {
+    if (window.AndroidNative && typeof window.AndroidNative.getDeviceId === "function") {
+      const id = window.AndroidNative.getDeviceId();
+      if (id && id !== "dev-unknown") return id;
+    }
+  } catch(e) {}
+  let localId = localStorage.getItem("pharmly_device_id");
+  if (!localId) {
+    localId = "web-" + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+    localStorage.setItem("pharmly_device_id", localId);
+  }
+  return localId;
+}
+
+function getPharmlyDeviceName() {
+  try {
+    if (window.AndroidNative && typeof window.AndroidNative.getDeviceName === "function") {
+      const n = window.AndroidNative.getDeviceName();
+      if (n) return n;
+    }
+  } catch(e) {}
+  const ua = navigator.userAgent;
+  if (/Android/i.test(ua)) {
+    const match = ua.match(/Android\s+[\d.]+;\s*([^;)]+)\)/);
+    if (match && match[1]) return match[1].trim();
+    return "Android Phone";
+  }
+  if (/iPhone/i.test(ua)) return "Apple iPhone";
+  if (/iPad/i.test(ua)) return "Apple iPad";
+  if (/Windows NT/i.test(ua)) return "Windows PC";
+  if (/Macintosh/i.test(ua)) return "MacBook / iMac";
+  if (/Linux/i.test(ua)) return "Linux Workstation";
+  return "Unknown Device";
+}
+
+function getPharmlyOsVersion() {
+  try {
+    if (window.AndroidNative && typeof window.AndroidNative.getOsVersion === "function") {
+      const v = window.AndroidNative.getOsVersion();
+      if (v) return v;
+    }
+  } catch(e) {}
+  const ua = navigator.userAgent;
+  if (/Android\s+([\d.]+)/i.test(ua)) {
+    return "Android " + (ua.match(/Android\s+([\d.]+)/i)[1] || "");
+  }
+  if (/Windows NT ([\d.]+)/i.test(ua)) {
+    return ua.includes("10.0") ? "Windows 10/11" : "Windows";
+  }
+  if (/Mac OS X ([\d_]+)/i.test(ua)) {
+    return "macOS " + (ua.match(/Mac OS X ([\d_]+)/i)[1].replace(/_/g, '.'));
+  }
+  return "Android / Web";
+}
+
+function showRestrictionScreen(msg, deviceId) {
+  const overlay = document.getElementById("device-restriction-screen");
+  if (!overlay) return;
+  overlay.style.display = "flex";
+  document.body.style.overflow = "hidden";
+  const msgEl = document.getElementById("restriction-screen-msg");
+  if (msgEl && msg) msgEl.textContent = msg;
+  const devIdEl = document.getElementById("restriction-screen-devid");
+  if (devIdEl) devIdEl.textContent = deviceId || getPharmlyDeviceId();
+  if (window.lucide) lucide.createIcons();
+
+  if (!restrictionPollTimer) {
+    restrictionPollTimer = setInterval(checkDeviceStatusFast, 6000);
+  }
+}
+
+function hideRestrictionScreen() {
+  const overlay = document.getElementById("device-restriction-screen");
+  if (overlay) overlay.style.display = "none";
+  document.body.style.overflow = "";
+  if (restrictionPollTimer) {
+    clearInterval(restrictionPollTimer);
+    restrictionPollTimer = null;
+  }
+}
+
+function checkDeviceStatusFast() {
+  const devId = getPharmlyDeviceId();
+  fetch(`/api/device/check-status?device_id=${encodeURIComponent(devId)}`)
+    .then(r => r.json())
+    .then(data => {
+      if (!data || !data.restricted) {
+        hideRestrictionScreen();
+      }
+    })
+    .catch(() => {});
+}
+
+function sendDeviceHeartbeat() {
+  const devId = getPharmlyDeviceId();
+  const payload = {
+    device_id: devId,
+    device_name: getPharmlyDeviceName(),
+    os_version: getPharmlyOsVersion(),
+    app_version: (window.AndroidNative && typeof window.AndroidNative.getAppVersion === 'function') ? window.AndroidNative.getAppVersion() : "3.7.5"
+  };
+
+  fetch("/api/telemetry/heartbeat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data && data.restricted) {
+      showRestrictionScreen(data.message, devId);
+    } else {
+      hideRestrictionScreen();
+    }
+  })
+  .catch(() => {});
+}
+
 </script>
 
 </body>
