@@ -104,18 +104,15 @@ def api_telegram_scrape():
 def api_app_version():
     # ✅ BANDWIDTH FIX: Use GitHub Releases URL (CDN-served), not raw/main (counts as Render egress via Android app).
     resp = jsonify({
-        "version_code": 15,
-        "version_name": "3.7.4",
+        "version_code": 16,
+        "version_name": "3.7.5",
         "download_url": "https://github.com/Swelo-ui/pharmabharat-scraper/releases/latest/download/Pharmly.apk",
         "changelog": [
-            "⚡ Official Version 3.7.4 Performance & Polish Release!",
-            "Fixed modal bookmark/save button & state synchronization",
-            "Added Flyer Download button to Fullscreen HD Lightbox",
-            "Added double-tap back to exit to prevent accidental app close",
-            "Fixed background notification receiver drops using goAsync()",
-            "Synchronized dark mode theme to native Android status bar",
-            "Fixed top bar layout jump & improved mobile touch targets",
-            "Bundled Lucide icons & Marked library for instant offline loading"
+            "🚀 Official Version 3.7.5 Ad-Free & Full Details Release!",
+            "Fixed PharmaBharat ad-lock: 100% full job descriptions, skills & qualifications restored",
+            "Direct Official Company Apply: Apply directly on employer career portals without website ad walls",
+            "Enhanced in-app WebView ad-shield: blocked background tracker & ad scripts",
+            "Performance & reliability improvements for instant offline feed loading"
         ]
     })
     resp.headers["Cache-Control"] = "public, max-age=3600"  # Cache for 1 hour
@@ -213,9 +210,18 @@ def api_job_detail(slug):
     if not job:
         return jsonify({"error": "Job not found"}), 404
 
-    # On-Demand Detail Scrape: If description_md is missing, fetch live, populate DB, and return full details
+    # On-Demand Detail Scrape: If description_md is missing or truncated by previous ad cutoff, fetch live, populate DB, and return full details
     desc = job.get("description_md")
-    if (not desc or len(str(desc).strip()) < 30) and job.get("url"):
+    desc_str = str(desc or "").strip()
+    is_truncated = (
+        not desc
+        or len(desc_str) < 30
+        or desc_str.endswith("---")
+        or "---Advertisement---" in desc_str
+        or ("## Job Responsibilities" in desc_str and "Skills" not in desc_str and "Qualification" not in desc_str and "Apply" not in desc_str)
+        or not job.get("apply_link")
+    )
+    if is_truncated and job.get("url"):
         try:
             detail_html = scraper.fetch(job["url"], retries=3, delay=0.3)
             if detail_html:

@@ -306,17 +306,17 @@ public class MainActivity extends Activity {
                     return true;
                 }
 
-                // Keep internal app navigation within WebView
+                // Keep internal app navigation within WebView (External links open in browser)
                 Uri parsedUri = request.getUrl();
                 String host = parsedUri != null ? parsedUri.getHost() : null;
                 if (host != null && (host.equalsIgnoreCase("pharmabharat-scraper-dic1.onrender.com") 
-                        || host.equalsIgnoreCase("pharmabharat.com") 
-                        || host.endsWith(".pharmabharat.com")
-                        || host.endsWith(".onrender.com"))) {
+                        || host.endsWith(".onrender.com")
+                        || host.equalsIgnoreCase("localhost")
+                        || host.equalsIgnoreCase("10.0.2.2"))) {
                     return false;
                 }
 
-                // External links open in device browser
+                // External links (company career portals, pharmabharat, etc.) open in external browser
                 try {
                     Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
                     startActivity(intent);
@@ -324,6 +324,26 @@ public class MainActivity extends Activity {
                 } catch (Exception e) {
                     return false;
                 }
+            }
+
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                if (request != null && request.getUrl() != null) {
+                    String reqUrl = request.getUrl().toString().toLowerCase();
+                    if (reqUrl.contains("googlesyndication.com")
+                            || reqUrl.contains("doubleclick.net")
+                            || reqUrl.contains("pagead2")
+                            || reqUrl.contains("adservice.google")
+                            || reqUrl.contains("securepubads")
+                            || reqUrl.contains("gpt.js")
+                            || reqUrl.contains("adx")
+                            || reqUrl.contains("taboola.com")
+                            || reqUrl.contains("outbrain.com")
+                            || reqUrl.contains("adnxs.com")) {
+                        return new WebResourceResponse("text/plain", "UTF-8", new java.io.ByteArrayInputStream(new byte[0]));
+                    }
+                }
+                return super.shouldInterceptRequest(view, request);
             }
 
             @Override

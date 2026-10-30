@@ -39,7 +39,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     email           TEXT,                -- extracted contact email
     phone           TEXT,                -- extracted phone / whatsapp number
     banner_url      TEXT,                -- extracted HD recruitment banner
-    source          TEXT DEFAULT 'pharmabharat'  -- which site: pharmabharat / pharmarecruiter
+    source          TEXT DEFAULT 'pharmabharat', -- which site: pharmabharat / pharmarecruiter
+    apply_link      TEXT                 -- direct official company career / ATS application URL
 );
 
 CREATE TABLE IF NOT EXISTS meta (
@@ -102,7 +103,7 @@ def backfill_banners():
         from bs4 import BeautifulSoup
         with get_conn() as conn:
             rows = conn.execute(
-                "SELECT slug, url, banner_url FROM jobs WHERE banner_url IS NULL OR (banner_url NOT LIKE '%.jpg%' AND banner_url NOT LIKE '%.png%' AND banner_url NOT LIKE '%.jpeg%' AND banner_url NOT LIKE '%.webp%' AND banner_url NOT LIKE '%/wp-content/uploads/%')"
+                "SELECT slug, url, banner_url FROM jobs WHERE banner_url IS NULL OR (banner_url NOT LIKE '%.jpg%' AND banner_url NOT LIKE '%.png%' AND banner_url NOT LIKE '%.jpeg%' AND banner_url NOT LIKE '%.webp%' AND banner_url NOT LIKE '%/wp-content/uploads/%') LIMIT 5"
             ).fetchall()
             if not rows:
                 return
@@ -373,6 +374,7 @@ def init_db():
             ("banner_url",       "ALTER TABLE jobs ADD COLUMN banner_url TEXT"),
             ("source",           "ALTER TABLE jobs ADD COLUMN source TEXT DEFAULT 'pharmabharat'"),
             ("posted_timestamp", "ALTER TABLE jobs ADD COLUMN posted_timestamp INTEGER"),
+            ("apply_link",        "ALTER TABLE jobs ADD COLUMN apply_link TEXT"),
         ]
         for col_name, sql in migrations:
             if col_name not in cols:
@@ -404,6 +406,7 @@ def init_db():
     backfill_companies()
     seed_from_json()
     sanitize_fresher_tags()
+    backfill_apply_links()
 
 
 # ─── GitHub Seed Sync (Bandwidth-Safe) ────────────────────────────────────────
@@ -527,11 +530,11 @@ def seed_from_json():
                     INSERT INTO jobs (
                         slug, url, title, company, category, experience_raw, is_fresher, is_fresher_friendly,
                         salary, location, application_type, verified, posted_date_raw, posted_timestamp,
-                        description_md, detail_scraped, first_seen_at, scraped_at, notified, email, phone, banner_url, source, is_active
+                        description_md, detail_scraped, first_seen_at, scraped_at, notified, email, phone, banner_url, source, apply_link, is_active
                     ) VALUES (
                         :slug, :url, :title, :company, :category, :experience_raw, :is_fresher, :is_fresher_friendly,
                         :salary, :location, :application_type, :verified, :posted_date_raw, :posted_timestamp,
-                        :description_md, :detail_scraped, :first_seen_at, :scraped_at, :notified, :email, :phone, :banner_url, :source, 1
+                        :description_md, :detail_scraped, :first_seen_at, :scraped_at, :notified, :email, :phone, :banner_url, :source, :apply_link, 1
                     ) ON CONFLICT(slug) DO UPDATE SET
                         title = excluded.title,
                         company = excluded.company,
@@ -546,6 +549,7 @@ def seed_from_json():
                         email = excluded.email,
                         phone = excluded.phone,
                         banner_url = excluded.banner_url,
+                        apply_link = COALESCE(excluded.apply_link, jobs.apply_link),
                         is_active = 1
                 """, {
                     "slug": j.get("slug"),
@@ -570,7 +574,8 @@ def seed_from_json():
                     "email": j.get("email"),
                     "phone": j.get("phone"),
                     "banner_url": b_url,
-                    "source": j.get("source", "pharmabharat")
+                    "source": j.get("source", "pharmabharat"),
+                    "apply_link": j.get("apply_link")
                 })
     except Exception:
         pass
@@ -745,8 +750,8 @@ def upsert_job(job: dict) -> bool:
                 is_fresher, is_fresher_friendly, salary, location,
                 application_type, verified, posted_date_raw, posted_timestamp,
                 description_md, detail_scraped, first_seen_at, scraped_at,
-                notified, is_active, email, phone, banner_url, source
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                notified, is_active, email, phone, banner_url, source, apply_link
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 job["slug"],
@@ -773,6 +778,7 @@ def upsert_job(job: dict) -> bool:
                 job.get("phone"),
                 (None if job.get("banner_url") and any(x in job.get("banner_url").lower() for x in ["google-preferred", "preferred-source", "google-news"]) else job.get("banner_url")),
                 job.get("source", "pharmabharat"),
+                job.get("apply_link"),
             ),
         )
         is_new_insert = (res.rowcount > 0)
@@ -796,7 +802,8 @@ def update_detail(slug: str, description_md: str, extra: dict):
                             location = COALESCE(?, location),
                             experience_raw = COALESCE(?, experience_raw),
                             email = COALESCE(?, email),
-                            phone = COALESCE(?, phone)
+                            phone = COALESCE(?, phone),
+                            apply_link = COALESCE(?, apply_link)
             WHERE slug = ?
             """,
             (
@@ -807,6 +814,7 @@ def update_detail(slug: str, description_md: str, extra: dict):
                 extra.get("experience_raw"),
                 extra.get("email"),
                 extra.get("phone"),
+                extra.get("apply_link"),
                 slug,
             ),
         )
@@ -1173,3 +1181,32 @@ def distinct_locations():
     # Sort alphabetically and limit
     clean.sort()
     return clean[:60]
+
+def backfill_apply_links():
+    """Extract direct ATS / official company application links from description_md for jobs missing apply_link."""
+    try:
+        with get_conn() as conn:
+            rows = conn.execute(
+                "SELECT slug, description_md FROM jobs WHERE apply_link IS NULL AND description_md IS NOT NULL"
+            ).fetchall()
+            for r in rows:
+                md_text = r["description_md"]
+                if not md_text:
+                    continue
+                # Extract markdown links
+                links = re.findall(r"\[.*?\]\((https?://[^\s\)]+)\)", md_text)
+                chosen_link = None
+                for l in links:
+                    l_lower = l.lower()
+                    if any(ats in l_lower for ats in [
+                        "workdayjobs.com", "myworkdayjobs.com", "greenhouse.io", "lever.co",
+                        "smartrecruiters.com", "icims.com", "successfactors.com", "taleo.net",
+                        "brassring.com", "oraclecloud.com", "peoplestrong.com", "darwinbox.in",
+                        "naukri.com", "careers.", "jobs.", "/careers", "/jobs/", "forms.gle", "docs.google.com/forms"
+                    ]):
+                        chosen_link = l
+                        break
+                if chosen_link:
+                    conn.execute("UPDATE jobs SET apply_link = ? WHERE slug = ?", (chosen_link, r["slug"]))
+    except Exception as e:
+        log.warning("backfill_apply_links failed: %s", e)

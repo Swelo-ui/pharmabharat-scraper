@@ -2681,7 +2681,20 @@ function renderModalJobData(job) {
   document.getElementById("modal-title").textContent = job.title || "Job Details";
   const formattedDateStr = formatJobDate(job);
   document.getElementById("modal-date").innerHTML = formattedDateStr ? `<span style="font-size:0.75rem;color:var(--ink-muted);font-weight:600;margin-right:2px;">Posted:</span> ${formattedDateStr}` : "";
-  document.getElementById("modal-apply-btn").href = job.url;
+  const applyUrl = job.apply_link || job.url;
+  const modalApplyBtn = document.getElementById("modal-apply-btn");
+  if (modalApplyBtn) {
+    modalApplyBtn.href = applyUrl;
+    modalApplyBtn.target = "_blank";
+    modalApplyBtn.rel = "noopener noreferrer";
+    if (job.apply_link) {
+      modalApplyBtn.innerHTML = '<i data-lucide="external-link" style="width:14px;height:14px;"></i> Apply Directly';
+      modalApplyBtn.title = "Direct official link to employer career portal";
+    } else {
+      modalApplyBtn.innerHTML = '<i data-lucide="external-link" style="width:14px;height:14px;"></i> Apply Now';
+      modalApplyBtn.title = "Open application page";
+    }
+  }
 
   const modalSaveBtn = document.getElementById("modal-save-btn");
   if (modalSaveBtn) {
@@ -2741,6 +2754,21 @@ function renderModalJobData(job) {
     descEl.innerHTML = bannerHtml + html;
     descEl.querySelectorAll("#toc_container, .toc_container, [id*='toc'], [class*='ez-toc']").forEach(el => el.remove());
 
+    if (job.apply_link) {
+      const applyCta = document.createElement("div");
+      applyCta.style.cssText = "margin: 20px 0 10px 0; padding: 14px; background: rgba(13, 148, 136, 0.08); border: 1px solid rgba(13, 148, 136, 0.25); border-radius: 10px; text-align: center;";
+      applyCta.innerHTML = `
+        <div style="font-weight: 700; font-size: 0.92rem; color: var(--teal-primary); margin-bottom: 4px;">
+          <i data-lucide="check-circle" style="width:15px;height:15px;vertical-align:middle;margin-right:4px;"></i> Direct Employer Application
+        </div>
+        <div style="font-size: 0.8rem; color: var(--ink-muted); margin-bottom: 10px;">Apply directly on the official career portal without website ad locks.</div>
+        <a href="${job.apply_link}" target="_blank" rel="noopener noreferrer" class="btn-primary" style="display:inline-flex; align-items:center; gap:6px; padding:9px 18px; font-weight:700; font-size:0.88rem; text-decoration:none; border-radius:8px;">
+          <i data-lucide="external-link" style="width:14px;height:14px;"></i> Apply on Official Portal
+        </a>
+      `;
+      descEl.appendChild(applyCta);
+    }
+
     function decodeCF(hex) {
       try {
         let email = '', k = parseInt(hex.substr(0, 2), 16);
@@ -2786,8 +2814,8 @@ function renderModalJobData(job) {
           Fetching Official Full Details...
         </div>
         <p style="font-size:0.82rem; margin-top:4px;">Connecting to ${siteName} to load complete job description & flyer...</p>
-        <a href="${job.url}" target="_blank" class="btn-primary" style="display:inline-flex; align-items:center; gap:6px; margin-top:12px; font-size:0.85rem; padding:8px 16px; text-decoration:none; border-radius: 8px;">
-          <i data-lucide="external-link" style="width:14px;height:14px;"></i> Open Original Post
+        <a href="${job.apply_link || job.url}" target="_blank" rel="noopener noreferrer" class="btn-primary" style="display:inline-flex; align-items:center; gap:6px; margin-top:12px; font-size:0.85rem; padding:8px 16px; text-decoration:none; border-radius: 8px;">
+          <i data-lucide="external-link" style="width:14px;height:14px;"></i> ${job.apply_link ? 'Apply on Official Portal' : 'Open Original Post'}
         </a>
       </div>`;
   }

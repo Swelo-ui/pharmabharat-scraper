@@ -403,6 +403,8 @@ def parse_listing_page(html, category=None):
 
 
 CONTENT_SELECTORS = [
+    ".dynamic-entry-content",
+    ".pb-job-content",
     "article .entry-content",
     ".entry-content",
     ".post-content",
@@ -457,20 +459,75 @@ def parse_detail_page(html):
                 banner_url = src_val.strip()
                 break
 
+    # Extract Direct Official Application Link before decomposing elements
+    apply_link = None
+    link_candidates = []
+    search_nodes = [container, soup] if container else [soup]
+    for s_node in search_nodes:
+        if not s_node:
+            continue
+        for a in s_node.find_all("a", href=True):
+            href = a["href"].strip()
+            if not href.startswith("http"):
+                continue
+            h_lower = href.lower()
+            if any(bad in h_lower for bad in [
+                "pharmabharat.com", "pharmarecruiter.in", "t.me", "telegram.me",
+                "whatsapp.com", "wa.me", "instagram.com", "facebook.com", 
+                "twitter.com", "x.com", "linkedin.com/sharing", "pinterest.com",
+                "google.com/search", "addtoany.com", "schema.org", "w.org",
+                "gravatar.com", "wp.com", "cloudflare.com"
+            ]):
+                continue
+            
+            text = a.get_text(strip=True)
+            img = a.find("img")
+            img_alt = img.get("alt", "") if img else ""
+            combined_desc = f"{text} {img_alt} {' '.join(a.get('class', []))} {a.get('id', '')}".lower()
+            
+            score = 0
+            if any(ats in h_lower for ats in [
+                "workdayjobs.com", "myworkdayjobs.com", "greenhouse.io", "lever.co",
+                "smartrecruiters.com", "icims.com", "successfactors.com", "taleo.net",
+                "brassring.com", "oraclecloud.com", "peoplestrong.com", "darwinbox.in",
+                "naukri.com", "careers.", "jobs.", "/careers", "/jobs/", "forms.gle", "docs.google.com/forms"
+            ]):
+                score += 15
+            
+            if any(w in combined_desc for w in ["apply", "application", "official link", "registration", "register here", "click here to apply"]):
+                score += 20
+                
+            link_candidates.append((score, href))
+        if link_candidates:
+            break
+
+    if link_candidates:
+        link_candidates.sort(key=lambda x: x[0], reverse=True)
+        if link_candidates[0][0] > 0 or len(link_candidates) == 1:
+            apply_link = link_candidates[0][1]
+
     # REMOVE ALL AD ELEMENTS, IFRAMES, TABLE OF CONTENTS (TOC), AND SCRIPT BLOCKS BEFORE CONVERTING TO MARKDOWN
     ad_selectors = [
         "ins", "iframe", "script", "style", ".adsbygoogle", ".ad", ".ads",
         ".advertisement", ".sharedaddy", ".wp-block-embed", ".code-block",
-        "div[class*='ad-']", "div[class*='ads']", ".jp-relatedposts",
+        "div[class*='ad-']", "div[class*='ads']", "div[class*='adx']",
+        ".adx-advertisement-label", ".pb-adx-placement", ".adxbyms-gpt-container",
+        ".pb-adx-native-slot", "[data-adx-block]", "[data-pb-gam-state]",
+        "[id*='div-gpt-ad']", "[id*='gpt']", ".jp-relatedposts",
         "#toc_container", ".toc_container", ".ez-toc-container", ".ez-toc-v2_0_69",
         "#ez-toc-container", "div[id*='toc']", "div[class*='toc']", ".table-of-contents",
         "nav[class*='toc']", ".ez-toc-title-container", ".ez-toc-widget-container",
         "img[src*='google-preferred-source']", "img[src*='preferred-source']",
         "a[href*='news.google.com']", "a[href*='google.com/preferences']"
     ]
-    for sel in ad_selectors:
-        for tag in container.select(sel):
-            tag.decompose()
+    if container:
+        for sel in ad_selectors:
+            for tag in container.select(sel):
+                tag.decompose()
+
+        for tag in container.find_all(True):
+            if tag.string and re.search(r"^\s*[-—*~]*\s*advertisement\s*[-—*~]*\s*$", tag.string, re.I):
+                tag.decompose()
 
     # Decode Cloudflare Obfuscated Email Protection in container
     def decode_cf_email(hex_str):
@@ -492,21 +549,33 @@ def parse_detail_page(html):
 
     markdown = md(str(container), heading_style="ATX")
     markdown = re.sub(r"^\s*Share\s+With\s+Your\s+Friends\s*\n*", "", markdown.strip(), flags=re.I)
+    
+    # Strip any in-content ad labels without truncating following content
+    markdown = re.sub(r"(?im)^\s*[-—*~_]*\s*advertisement\s*[-—*~_]*\s*$", "", markdown)
+    markdown = re.sub(r"(?im)^\s*view ad to continue\s*$", "", markdown)
+    markdown = re.sub(r"(?im)^\s*---Advertisement---\s*", "", markdown)
+
     # Clean TOC table of contents markdown block if present
     markdown = re.sub(r"\n*#*\s*Contents\s*\n+(\s*[\*\-]\s*\[?\d+\.?\d*.*?\]?\(#.*?\)\s*\n?)+", "\n\n", markdown, flags=re.I)
     markdown = re.sub(r"\n*#*\s*Contents\s*\n+(\s*\d+\.\s*\[?.*?\]?\(#.*?\)\s*\n?)+", "\n\n", markdown, flags=re.I)
 
-    # trailing share/ad/related-jobs section hata do agar mila
-    cut_markers = ["Share This Job", "RECENT JOBS", "Advertisement", "Related Jobs"]
-    for marker in cut_markers:
-        idx = markdown.find(marker)
-        if idx != -1:
-            markdown = markdown[:idx]
+    # Only truncate genuine end-of-article footer sections (never truncate on in-content 'Advertisement')
+    trailing_section_patterns = [
+        r"\n+#+\s*Share\s+(?:This\s+Job|With\s+Your\s+Friends).*",
+        r"\n+#+\s*RECENT\s+JOBS.*",
+        r"\n+#+\s*Related\s+Jobs.*",
+        r"\n+Share\s+This\s+Job.*",
+        r"\n+Share\s+With\s+Your\s+Friends.*",
+    ]
+    for pat in trailing_section_patterns:
+        m = re.search(pat, markdown, flags=re.I | re.S)
+        if m:
+            markdown = markdown[:m.start()]
 
-    # "Job Overview" table se key-value pairs nikalo
+    # \"Job Overview\" or \"Job Details\" table se key-value pairs nikalo
     overview = {}
     table_match = re.search(
-        r"#+\s*Job Overview(.*?)(?=\n#+\s|\Z)", markdown, re.S | re.I
+        r"#+\s*Job (?:Overview|Details)(.*?)(?=\n#+\s|\Z)", markdown, re.S | re.I
     )
     if table_match:
         for row in re.findall(r"\|\s*([^|\n]+?)\s*\|\s*([^|\n]+?)\s*\|", table_match.group(1)):
@@ -524,6 +593,7 @@ def parse_detail_page(html):
         "email": email_m.group() if email_m else None,
         "phone": phone_m.group() if phone_m else None,
         "banner_url": banner_url,
+        "apply_link": apply_link,
     }
 
     salary_match = re.search(r"#+\s*Salary(.*?)(?=\n#+\s|\Z)", markdown, re.S | re.I)
@@ -611,6 +681,7 @@ def parse_detail_page(html):
         "is_fresher_friendly": is_fresher,
         "posted_date_raw": page_posted_date,
         "description_md": markdown.strip(),
+        "apply_link": apply_link,
         "extra": extra,
     }
 

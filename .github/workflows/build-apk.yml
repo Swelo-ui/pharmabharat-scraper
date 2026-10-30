@@ -47,21 +47,21 @@ jobs:
       - name: 📤 Upload APK as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Pharmly-v3.7.4
+          name: Pharmly-v3.7.5
           path: Pharmly.apk
           retention-days: 90
 
       - name: 🚀 Create / Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v3.7.4
-          name: "Pharmly v3.7.4"
+          tag_name: v3.7.5
+          name: "Pharmly v3.7.5"
           body: |
-            ## 📱 Pharmly App v3.7.4
+            ## 📱 Pharmly App v3.7.5
 
             Download `Pharmly.apk` below and install on your Android device.
 
-            ### What's new in v3.7.4:
+            ### What's new in v3.7.5:
             - ⚡ Fixed modal bookmark/save button & state synchronization
             - 🖼️ Added Flyer Download button to Fullscreen HD Lightbox
             - 🛡️ Double-tap back to exit prevents accidental app close
