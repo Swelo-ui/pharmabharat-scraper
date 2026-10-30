@@ -970,6 +970,16 @@
   }
 
   .btn-apply:hover { background: var(--primary-deep); }
+  .btn-apply.btn-apply-email {
+    background: #2563eb !important;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35) !important;
+  }
+  .btn-apply.btn-apply-email:hover { background: #1d4ed8 !important; }
+  .btn-apply.btn-apply-walkin {
+    background: #d97706 !important;
+    box-shadow: 0 2px 6px rgba(217, 119, 6, 0.35) !important;
+  }
+  .btn-apply.btn-apply-walkin:hover { background: #b45309 !important; }
 
   /* Quiet Notification (No floating popups on screen) */
   .toast { display: none !important; }
@@ -2607,9 +2617,23 @@ function createJobCardInnerHtml(job) {
             <i data-lucide="share-2" style="width:14px;height:14px;"></i> Share
           </button>
         </div>
-        <a class="btn-action btn-apply" href="${job.apply_link || job.url}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">
-          ${job.apply_link ? 'Apply Directly' : 'Apply'} <i data-lucide="external-link" style="width:12px;height:12px;"></i>
-        </a>
+        ${job.apply_link ? `
+          <a class="btn-action btn-apply" href="${job.apply_link}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">
+            Apply Directly <i data-lucide="external-link" style="width:12px;height:12px;"></i>
+          </a>
+        ` : (job.email ? `
+          <a class="btn-action btn-apply btn-apply-email" href="mailto:${job.email}?subject=${encodeURIComponent('Application: ' + (job.title || 'Job') + ' - via Pharmly')}" onclick="event.stopPropagation()">
+            Email HR <i data-lucide="mail" style="width:12px;height:12px;"></i>
+          </a>
+        ` : (((job.title && /walk[\-\s]?in/i.test(job.title)) || (job.category && /walk/i.test(job.category))) ? `
+          <button class="btn-action btn-apply btn-apply-walkin" onclick="event.stopPropagation(); openJobModal('${job.slug}'); setTimeout(()=>switchModalTab('description'), 80);">
+            Walk-in Details <i data-lucide="calendar" style="width:12px;height:12px;"></i>
+          </button>
+        ` : `
+          <a class="btn-action btn-apply" href="${job.url}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">
+            Apply <i data-lucide="external-link" style="width:12px;height:12px;"></i>
+          </a>
+        `))}
       </div>
     </div>`;
 }
@@ -2685,16 +2709,41 @@ function renderModalJobData(job) {
   document.getElementById("modal-title").textContent = job.title || "Job Details";
   const formattedDateStr = formatJobDate(job);
   document.getElementById("modal-date").innerHTML = formattedDateStr ? `<span style="font-size:0.75rem;color:var(--ink-muted);font-weight:600;margin-right:2px;">Posted:</span> ${formattedDateStr}` : "";
-  const applyUrl = job.apply_link || job.url;
   const modalApplyBtn = document.getElementById("modal-apply-btn");
   if (modalApplyBtn) {
-    modalApplyBtn.href = applyUrl;
-    modalApplyBtn.target = "_blank";
-    modalApplyBtn.rel = "noopener noreferrer";
+    modalApplyBtn.onclick = null;
     if (job.apply_link) {
+      modalApplyBtn.href = job.apply_link;
+      modalApplyBtn.target = "_blank";
+      modalApplyBtn.rel = "noopener noreferrer";
+      modalApplyBtn.className = "btn-action btn-apply";
       modalApplyBtn.innerHTML = '<i data-lucide="external-link" style="width:14px;height:14px;"></i> Apply Directly';
       modalApplyBtn.title = "Direct official link to employer career portal";
+    } else if (job.email) {
+      modalApplyBtn.href = "mailto:" + job.email + "?subject=" + encodeURIComponent("Job Application: " + (job.title || '') + " - via Pharmly");
+      modalApplyBtn.removeAttribute("target");
+      modalApplyBtn.removeAttribute("rel");
+      modalApplyBtn.className = "btn-action btn-apply btn-apply-email";
+      modalApplyBtn.innerHTML = '<i data-lucide="mail" style="width:14px;height:14px;"></i> Send CV / Email HR';
+      modalApplyBtn.title = "Tap to open email app and send CV directly to HR";
+    } else if ((job.title && /walk[\-\s]?in/i.test(job.title)) || (job.category && /walk/i.test(job.category))) {
+      modalApplyBtn.href = "javascript:void(0)";
+      modalApplyBtn.removeAttribute("target");
+      modalApplyBtn.removeAttribute("rel");
+      modalApplyBtn.className = "btn-action btn-apply btn-apply-walkin";
+      modalApplyBtn.innerHTML = '<i data-lucide="calendar" style="width:14px;height:14px;"></i> Walk-in Venue & Dates';
+      modalApplyBtn.title = "View walk-in interview schedule and venue details";
+      modalApplyBtn.onclick = function(e) {
+        e.preventDefault();
+        switchModalTab('description');
+        const descEl = document.getElementById("description-content");
+        if (descEl) descEl.scrollIntoView({ behavior: 'smooth' });
+      };
     } else {
+      modalApplyBtn.href = job.url;
+      modalApplyBtn.target = "_blank";
+      modalApplyBtn.rel = "noopener noreferrer";
+      modalApplyBtn.className = "btn-action btn-apply";
       modalApplyBtn.innerHTML = '<i data-lucide="external-link" style="width:14px;height:14px;"></i> Apply Now';
       modalApplyBtn.title = "Open application page";
     }
@@ -2771,6 +2820,29 @@ function renderModalJobData(job) {
         </a>
       `;
       descEl.appendChild(applyCta);
+    } else if (job.email) {
+      const emailCta = document.createElement("div");
+      emailCta.style.cssText = "margin: 20px 0 10px 0; padding: 14px; background: rgba(37, 99, 235, 0.08); border: 1px solid rgba(37, 99, 235, 0.25); border-radius: 10px; text-align: center;";
+      emailCta.innerHTML = `
+        <div style="font-weight: 700; font-size: 0.92rem; color: #2563eb; margin-bottom: 4px;">
+          <i data-lucide="mail-check" style="width:15px;height:15px;vertical-align:middle;margin-right:4px;"></i> Direct HR Application via Email
+        </div>
+        <div style="font-size: 0.8rem; color: var(--ink-muted); margin-bottom: 10px;">Send your updated CV/Resume directly to <strong>${job.email}</strong>.</div>
+        <a href="mailto:${job.email}?subject=${encodeURIComponent('Application for ' + (job.title || 'Position') + ' - via Pharmly')}" class="btn-primary" style="display:inline-flex; align-items:center; gap:6px; padding:9px 18px; font-weight:700; font-size:0.88rem; text-decoration:none; border-radius:8px; background:#2563eb;">
+          <i data-lucide="mail" style="width:14px;height:14px;"></i> Open Email App to Send CV
+        </a>
+      `;
+      descEl.appendChild(emailCta);
+    } else if ((job.title && /walk[\-\s]?in/i.test(job.title)) || (job.category && /walk/i.test(job.category))) {
+      const walkinCta = document.createElement("div");
+      walkinCta.style.cssText = "margin: 20px 0 10px 0; padding: 14px; background: rgba(217, 119, 6, 0.08); border: 1px solid rgba(217, 119, 6, 0.25); border-radius: 10px; text-align: center;";
+      walkinCta.innerHTML = `
+        <div style="font-weight: 700; font-size: 0.92rem; color: #d97706; margin-bottom: 4px;">
+          <i data-lucide="map-pin" style="width:15px;height:15px;vertical-align:middle;margin-right:4px;"></i> In-Person Walk-in Interview
+        </div>
+        <div style="font-size: 0.8rem; color: var(--ink-muted);">Please check the interview date, batch timing, and venue address above. Carry your updated CV and required documents.</div>
+      `;
+      descEl.appendChild(walkinCta);
     }
 
     function decodeCF(hex) {
