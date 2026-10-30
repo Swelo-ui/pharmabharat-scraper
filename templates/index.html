@@ -2291,21 +2291,52 @@ function sanitizeSalary(raw) {
   return s;
 }
 
-// Location sanitizer — filter out long paragraph sentences or junk text
+// Smart Location sanitizer — accurately recognizes Indian Pharma hubs and strips street address noise
 function sanitizeLocation(raw) {
   if (!raw) return null;
   let s = raw.trim();
-  if (/\*\*|Job Location|Company Name|INDIAN AIR FORCE|Biophore|CDSCO/i.test(s)) return null;
-  s = s.replace(/\*+/g, '').trim();
+  if (/\*\*|Job Location|Company Name|INDIAN AIR FORCE|Biophore|CDSCO|Granules|Lactose|Advantmed|Amneal/i.test(s)) return null;
+  s = s.replace(/[*_#|`~]/g, '').trim();
   s = s.replace(/^India\s*(\([^)]*\))?\s*(&|\/|and)\s*/gi, '').trim();
+  s = s.replace(/^(location|country|company name|market)\s*:\s*/gi, '').trim();
+
+  // Smart Pharma Hub Detection
+  const lower = s.toLowerCase();
+  if (/bengaluru|bangalore|bommasandra|electronic city|whitefield|yeshwantpur|peenya|jigani/i.test(lower)) return 'Bengaluru';
+  if (/hyderabad|secunderabad|sangareddy|patancheru|jeedimetla|genome valley|cherlapally|balanagar|nanakramguda|shameerpet|shamshabad|dundigal|bonthapally|rudraram/i.test(lower)) return 'Hyderabad';
+  if (/mumbai|bombay|navi mumbai|thane|tarapur|boisar|palghar|andheri|airoli|mahape|turbhe|vashi|panvel|kalyan/i.test(lower)) return 'Mumbai / MMR';
+  if (/ahmedabad|ahmadabad|sanand|changodar|bavla|matoda|sachana|kadi|chacharwadi/i.test(lower)) return 'Ahmedabad';
+  if (/vadodara|baroda|halol|savli|kalol|nandesari|padra|karkhadi|tandalja/i.test(lower)) return 'Vadodara (Baroda)';
+  if (/gurgaon|gurugram|manesar|sohna|udyog vihar/i.test(lower)) return 'Gurugram';
+  if (/noida|greater noida/i.test(lower)) return 'Noida';
+  if (/delhi|new delhi/i.test(lower)) return 'Delhi';
+  if (/pithampur|indore|dewas|pologround/i.test(lower)) return 'Indore / Pithampur';
+  if (/baddi|solan|nalagarh|paonta sahib|kala amb|sandholi/i.test(lower)) return 'Baddi (Himachal)';
+  if (/pune|hinjewadi|chakan|hadapsar|kurkumbh|shirwal/i.test(lower)) return 'Pune';
+  if (/visakhapatnam|vizag|parawada|duvvada|jnpc|pydibhimavaram|anakapalli|achutapuram/i.test(lower)) return 'Visakhapatnam (Vizag)';
+  if (/ankleshwar|bharuch|dahej|panoli|zaghadia/i.test(lower)) return 'Ankleshwar / Bharuch';
+  if (/vapi|daman|silvassa|sarigam|valsad|dabhel/i.test(lower)) return 'Vapi / Daman';
+  if (/chennai|madras|alathur|sriperumbudur|guindy|tharamani/i.test(lower)) return 'Chennai';
+  if (/chandigarh|mohali|panchkula|zirakpur|dera bassi/i.test(lower)) return 'Chandigarh / Mohali';
+  if (/haridwar|dehradun|rishikesh|roorkee|sidcul|bhagwanpur/i.test(lower)) return 'Haridwar / Dehradun';
+  if (/goa|verna|ponda|kundaim|tuem|mapusa/i.test(lower)) return 'Goa';
+  if (/sikkim|rangpo|ranipool|majhitar|gangtok/i.test(lower)) return 'Sikkim';
+  if (/aurangabad|chhatrapati sambhajinagar|waluj|shendra/i.test(lower)) return 'Aurangabad';
+  if (/kolkata|calcutta|howrah|salt lake/i.test(lower)) return 'Kolkata';
+  if (/jaipur|sitapura/i.test(lower)) return 'Jaipur';
+  if (/lucknow/i.test(lower)) return 'Lucknow';
+  if (/nagpur|butibori/i.test(lower)) return 'Nagpur';
+  if (/surat|hazira|sachin/i.test(lower)) return 'Surat';
+  if (/bhopal|mandideep/i.test(lower)) return 'Bhopal';
+  if (/remote|work from home|wfh|virtual/i.test(lower)) return 'Remote';
+
   if (s.includes(' & ')) s = s.split(' & ')[0].trim();
   if (s.includes(' / ')) s = s.split(' / ')[0].trim();
   if (s.includes(' and ')) s = s.split(' and ')[0].trim();
   const parts = s.split(',').map(p => p.trim());
   if (parts.length >= 2) s = parts[0];
-  s = s.replace(/\bBangalore\b/gi, 'Bengaluru');
   s = s.replace(/\s*\([^)]*\)/g, '').trim();
-  if (!s || s.length > 25 || /^(india|remote)$/i.test(s)) return null;
+  if (!s || s.length > 28 || /^(india|across india|pan india)$/i.test(s)) return null;
   if (/pharmaceutical|looking|hiring|opportunity|company|ltd/i.test(s)) return null;
   return s;
 }
@@ -2388,18 +2419,24 @@ function loadDropdowns() {
       const container = document.getElementById("location-list-items");
       const list = [{ slug: "", name: "All Locations" }];
 
-      // API already returns normalized+deduped cities; just render them
       locs.forEach(l => {
-        if (l && l.trim()) list.push({ slug: l, name: l });
+        if (typeof l === 'object' && l !== null) {
+          list.push({ slug: l.slug || l.name, name: l.name, count: l.count });
+        } else if (l && typeof l === 'string' && l.trim()) {
+          list.push({ slug: l, name: l });
+        }
       });
 
       container.innerHTML = list.map(item => `
-        <div class="category-item ${state.location === item.slug ? 'active' : ''}" onclick="selectLocation('${item.slug.replace(/'/g,"\\'")}', '${item.name.replace(/'/g,"\\'")}')">
+        <div class="category-item ${state.location === item.slug ? 'active' : ''}" onclick="selectLocation('${item.slug.replace(/'/g,"\'")}', '${item.name.replace(/'/g,"\'")}')">
           <div class="cat-left">
             <i data-lucide="map-pin" style="width:18px;height:18px;flex-shrink:0;color:var(--primary);"></i>
             <span>${item.name}</span>
           </div>
-          ${state.location === item.slug ? '<i data-lucide="check" style="width:16px;height:16px;flex-shrink:0;color:var(--primary);"></i>' : '<i data-lucide="chevron-right" style="width:14px;height:14px;flex-shrink:0;color:var(--ink-soft);"></i>'}
+          <div style="display:flex; align-items:center; gap:8px;">
+            ${item.count ? `<span style="font-size:0.75rem; font-weight:700; color:var(--primary); background:rgba(13,148,136,0.12); padding:2px 8px; border-radius:12px;">${item.count}</span>` : ''}
+            ${state.location === item.slug ? '<i data-lucide="check" style="width:16px;height:16px;flex-shrink:0;color:var(--primary);"></i>' : '<i data-lucide="chevron-right" style="width:14px;height:14px;flex-shrink:0;color:var(--ink-soft);"></i>'}
+          </div>
         </div>
       `).join("");
 

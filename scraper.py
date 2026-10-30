@@ -608,6 +608,16 @@ def parse_detail_page(html):
         if loc:
             extra["location"] = loc
 
+    # Normalize smart location and assign canonical cluster
+    try:
+        from location_utils import resolve_smart_location
+        loc_res = resolve_smart_location(extra.get("location"), None, markdown)
+        extra["canonical_location"] = loc_res["canonical"]
+        if loc_res["display"] != "Pan-India":
+            extra["location"] = loc_res["display"]
+    except Exception:
+        pass
+
     # Auto-detect Experience from text if not in overview table
     if not extra["experience_raw"]:
         exp_m = EXPERIENCE_RE.search(markdown)

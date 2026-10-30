@@ -6,6 +6,7 @@ sab kuch ek file (jobs.db) mein store hota hai.
 """
 
 import sqlite3
+from location_utils import resolve_smart_location, get_aliases_for_query, LOCATION_CLUSTERS
 import time
 import re
 import logging
@@ -40,7 +41,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     phone           TEXT,                -- extracted phone / whatsapp number
     banner_url      TEXT,                -- extracted HD recruitment banner
     source          TEXT DEFAULT 'pharmabharat', -- which site: pharmabharat / pharmarecruiter
-    apply_link      TEXT                 -- direct official company career / ATS application URL
+    apply_link      TEXT,                -- direct official company career / ATS application URL
+    canonical_location TEXT              -- normalized smart pharma cluster/hub location
 );
 
 CREATE TABLE IF NOT EXISTS meta (
@@ -52,6 +54,7 @@ CREATE INDEX IF NOT EXISTS idx_category ON jobs(category);
 CREATE INDEX IF NOT EXISTS idx_fresher ON jobs(is_fresher_friendly);
 CREATE INDEX IF NOT EXISTS idx_notified ON jobs(notified);
 CREATE INDEX IF NOT EXISTS idx_posted_ts ON jobs(posted_timestamp);
+CREATE INDEX IF NOT EXISTS idx_canonical_location ON jobs(canonical_location);
 """
 
 
@@ -375,6 +378,7 @@ def init_db():
             ("source",           "ALTER TABLE jobs ADD COLUMN source TEXT DEFAULT 'pharmabharat'"),
             ("posted_timestamp", "ALTER TABLE jobs ADD COLUMN posted_timestamp INTEGER"),
             ("apply_link",        "ALTER TABLE jobs ADD COLUMN apply_link TEXT"),
+            ("canonical_location", "ALTER TABLE jobs ADD COLUMN canonical_location TEXT"),
         ]
         for col_name, sql in migrations:
             if col_name not in cols:
@@ -743,6 +747,9 @@ def upsert_job(job: dict) -> bool:
 
         posted_ts = parse_posted_timestamp(job.get("posted_date_raw")) or int(time.time())
         is_ff = int(determine_fresher_eligibility(job.get("experience_raw"), job.get("title"), job.get("description_md")))
+        loc_res = resolve_smart_location(job.get("location"), job.get("title"), job.get("description_md"))
+        canonical_loc = loc_res["canonical"]
+        clean_loc = loc_res["display"] if loc_res["display"] != "Pan-India" else job.get("location")
         res = conn.execute(
             """
             INSERT OR IGNORE INTO jobs (
@@ -750,8 +757,9 @@ def upsert_job(job: dict) -> bool:
                 is_fresher, is_fresher_friendly, salary, location,
                 application_type, verified, posted_date_raw, posted_timestamp,
                 description_md, detail_scraped, first_seen_at, scraped_at,
-                notified, is_active, email, phone, banner_url, source, apply_link
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                notified, is_active, email, phone, banner_url, source, apply_link,
+                canonical_location
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 job["slug"],
@@ -763,7 +771,7 @@ def upsert_job(job: dict) -> bool:
                 is_ff,
                 is_ff,
                 job.get("salary"),
-                job.get("location"),
+                clean_loc or job.get("location"),
                 job.get("application_type"),
                 int(job.get("verified", False)),
                 job.get("posted_date_raw"),
@@ -779,6 +787,7 @@ def upsert_job(job: dict) -> bool:
                 (None if job.get("banner_url") and any(x in job.get("banner_url").lower() for x in ["google-preferred", "preferred-source", "google-news"]) else job.get("banner_url")),
                 job.get("source", "pharmabharat"),
                 job.get("apply_link"),
+                canonical_loc,
             ),
         )
         is_new_insert = (res.rowcount > 0)
@@ -793,6 +802,8 @@ def update_detail(slug: str, description_md: str, extra: dict):
     b_url = extra.get("banner_url")
     if b_url and any(x in b_url.lower() for x in ["google-preferred", "preferred-source", "google-news"]):
         b_url = None
+    loc_res = resolve_smart_location(extra.get("location"), None, description_md)
+    canonical_loc = loc_res["canonical"]
     with get_conn() as conn:
         conn.execute(
             """
@@ -803,7 +814,8 @@ def update_detail(slug: str, description_md: str, extra: dict):
                             experience_raw = COALESCE(?, experience_raw),
                             email = COALESCE(?, email),
                             phone = COALESCE(?, phone),
-                            apply_link = COALESCE(?, apply_link)
+                            apply_link = COALESCE(?, apply_link),
+                            canonical_location = COALESCE(?, canonical_location)
             WHERE slug = ?
             """,
             (
@@ -815,6 +827,7 @@ def update_detail(slug: str, description_md: str, extra: dict):
                 extra.get("email"),
                 extra.get("phone"),
                 extra.get("apply_link"),
+                canonical_loc,
                 slug,
             ),
         )
@@ -1030,8 +1043,19 @@ def query_jobs(category=None, fresher_only=False, verified_only=False,
     if verified_only:
         where.append("verified = 1")
     if location:
-        where.append("location LIKE ?")
-        params.append(f"%{location}%")
+        loc_str = location.strip()
+        aliases = get_aliases_for_query(loc_str)
+        if aliases and len(aliases) > 1:
+            loc_conditions = []
+            for al in aliases:
+                loc_conditions.append("location LIKE ?")
+                params.append(f"%{al}%")
+            loc_conditions.append("canonical_location LIKE ?")
+            params.append(f"%{loc_str}%")
+            where.append("(" + " OR ".join(loc_conditions) + ")")
+        else:
+            where.append("(location LIKE ? OR canonical_location LIKE ?)")
+            params.extend([f"%{loc_str}%", f"%{loc_str}%"])
     if source:
         where.append("source = ?")
         params.append(source)
@@ -1166,21 +1190,34 @@ def _normalize_location(raw: str) -> str | None:
 def distinct_locations():
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT location, COUNT(*) as cnt FROM jobs WHERE location IS NOT NULL AND location != '' AND is_active = 1 GROUP BY location ORDER BY cnt DESC"
+            """
+            SELECT canonical_location, COUNT(*) as cnt 
+            FROM jobs 
+            WHERE canonical_location IS NOT NULL 
+              AND canonical_location != '' 
+              AND canonical_location != 'Pan-India / Multiple'
+              AND is_active = 1 
+            GROUP BY canonical_location 
+            ORDER BY cnt DESC
+            """
         ).fetchall()
-
-    # Normalize and deduplicate
-    seen = set()
-    clean = []
-    for r in rows:
-        norm = _normalize_location(r["location"])
-        if norm and norm.lower() not in seen:
-            seen.add(norm.lower())
-            clean.append(norm)
-
-    # Sort alphabetically and limit
-    clean.sort()
-    return clean[:60]
+        
+        counts_map = {r["canonical_location"]: r["cnt"] for r in rows}
+        
+        results = []
+        for cluster in LOCATION_CLUSTERS:
+            can = cluster["canonical"]
+            cnt = counts_map.get(can, 0)
+            if cnt > 0:
+                results.append({
+                    "slug": cluster["slug"],
+                    "name": can,
+                    "count": cnt
+                })
+        
+        # Sort by active job count descending
+        results.sort(key=lambda x: x["count"], reverse=True)
+        return results
 
 def backfill_apply_links():
     """Extract direct ATS / official company application links from description_md for jobs missing apply_link."""
