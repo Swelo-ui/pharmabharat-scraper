@@ -73,4 +73,4 @@ Copy-Item $builtApk -Destination $rootProApk -Force
 Copy-Item $builtApk -Destination $rootPharmaBharatProApk -Force
 Write-Host "Copied to $rootApk, $rootProApk, and $rootPharmaBharatProApk" -ForegroundColor Green
 
-Write-Host "APK Build Successful! Official APK: Pharmly.apk (Version 3.7.5, Code 16)" -ForegroundColor Green
+Write-Host "APK Build Successful! Official APK: Pharmly.apk (Version 3.8.0, Code 17)" -ForegroundColor Green

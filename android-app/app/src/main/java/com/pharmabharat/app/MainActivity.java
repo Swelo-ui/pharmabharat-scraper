@@ -2,7 +2,6 @@ package com.pharmabharat.app;
 
 import android.app.Activity;
 import android.os.Build;
-import android.provider.Settings;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -177,43 +176,6 @@ public class MainActivity extends Activity {
                 } catch (Exception ignored) {}
             }
         }).start();
-    }
-
-    private File downloadedApkFile = null;
-
-    private void installApkFileDirect(Context context, File apkFile) {
-        if (apkFile == null || !apkFile.exists()) return;
-        try {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                if (!context.getPackageManager().canRequestPackageInstalls()) {
-                    Toast.makeText(context, "Please allow Pharmly to install app updates", Toast.LENGTH_LONG).show();
-                    Intent settingsIntent = new Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES);
-                    settingsIntent.setData(Uri.parse("package:" + context.getPackageName()));
-                    settingsIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    context.startActivity(settingsIntent);
-                    return;
-                }
-            }
-
-            Uri apkUri;
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-                apkUri = androidx.core.content.FileProvider.getUriForFile(
-                    context,
-                    context.getPackageName() + ".fileprovider",
-                    apkFile
-                );
-            } else {
-                apkUri = Uri.fromFile(apkFile);
-            }
-
-            Intent intent = new Intent(Intent.ACTION_VIEW);
-            intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            context.startActivity(intent);
-        } catch (Exception e) {
-            e.printStackTrace();
-            Toast.makeText(context, "Installation failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-        }
     }
 
     private void setupWebView() {
@@ -531,127 +493,28 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void downloadAndInstallApk(final String apkUrl) {
-            new Thread(new Runnable() {
+            runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    java.io.InputStream input = null;
-                    java.io.FileOutputStream output = null;
                     try {
-                        String currentUrl = apkUrl.startsWith("http") ? apkUrl : TARGET_URL + apkUrl;
-                        Uri checkUri = Uri.parse(currentUrl);
-                        String checkHost = checkUri.getHost();
-                        if (checkHost == null || (!checkHost.contains("github") && !checkHost.contains("onrender") && !checkHost.contains("pharmabharat"))) {
-                            throw new SecurityException("Untrusted download source: " + checkHost);
+                        String currentUrl = apkUrl != null && !apkUrl.isEmpty() ? apkUrl : "https://github.com/Swelo-ui/pharmabharat-scraper/releases/latest/download/Pharmly.apk";
+                        if (!currentUrl.startsWith("http")) {
+                            currentUrl = TARGET_URL + (currentUrl.startsWith("/") ? "" : "/") + currentUrl;
                         }
-
-                        // Follow redirects safely (handles GitHub Releases -> AWS S3 / Azure CDN)
-                        java.net.HttpURLConnection conn = null;
-                        int redirects = 0;
-                        while (redirects < 6) {
-                            java.net.URL u = new java.net.URL(currentUrl);
-                            conn = (java.net.HttpURLConnection) u.openConnection();
-                            conn.setRequestMethod("GET");
-                            conn.setConnectTimeout(25000);
-                            conn.setReadTimeout(25000);
-                            conn.setInstanceFollowRedirects(false);
-                            conn.setRequestProperty("User-Agent", "Pharmly-Android/" + getAppVersionCode());
-                            conn.connect();
-
-                            int status = conn.getResponseCode();
-                            if (status == 301 || status == 302 || status == 303 || status == 307 || status == 308) {
-                                String redirectUrl = conn.getHeaderField("Location");
-                                if (redirectUrl != null) {
-                                    if (!redirectUrl.startsWith("http")) {
-                                        redirectUrl = new java.net.URL(u, redirectUrl).toExternalForm();
-                                    }
-                                    currentUrl = redirectUrl;
-                                    redirects++;
-                                    conn.disconnect();
-                                    continue;
-                                }
-                            }
-                            break;
-                        }
-
-                        if (conn == null || conn.getResponseCode() != 200) {
-                            int code = conn != null ? conn.getResponseCode() : -1;
-                            throw new java.io.IOException("Server returned HTTP " + code);
-                        }
-
-                        final int fileLength = conn.getContentLength();
-                        java.io.File downloadDir = mContext.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS);
-                        if (downloadDir != null && !downloadDir.exists()) downloadDir.mkdirs();
-                        
-                        final java.io.File apkFile = new java.io.File(downloadDir, "Pharmly_Update.apk");
-                        downloadedApkFile = apkFile;
-
-                        input = conn.getInputStream();
-                        output = new java.io.FileOutputStream(apkFile);
-
-                        byte[] data = new byte[16384];
-                        long total = 0;
-                        int count;
-                        long lastReportTime = 0;
-
-                        while ((count = input.read(data)) != -1) {
-                            total += count;
-                            long currentTime = System.currentTimeMillis();
-                            if (fileLength > 0 && (currentTime - lastReportTime > 150 || total == fileLength)) {
-                                lastReportTime = currentTime;
-                                final int progress = Math.min(100, (int) (total * 100L / fileLength));
-                                runOnUiThread(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        if (webView != null) {
-                                            webView.evaluateJavascript("if(window.onApkDownloadProgress) window.onApkDownloadProgress(" + progress + ");", null);
-                                        }
-                                    }
-                                });
-                            }
-                            output.write(data, 0, count);
-                        }
-
-                        output.flush();
-                        output.close();
-                        output = null;
-                        input.close();
-                        input = null;
-
-                        // Download Complete -> Update UI to 100% and launch package installer immediately!
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                if (webView != null) {
-                                    webView.evaluateJavascript("if(window.onApkDownloadComplete) window.onApkDownloadComplete();", null);
-                                }
-                                installApkFileDirect(mContext, apkFile);
-                            }
-                        });
-
-                    } catch (final Exception e) {
-                        e.printStackTrace();
-                        try { if (output != null) output.close(); } catch (Exception ignored) {}
-                        try { if (input != null) input.close(); } catch (Exception ignored) {}
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                Toast.makeText(mContext, "Download failed! Opening in browser...", Toast.LENGTH_SHORT).show();
-                                try {
-                                    Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(apkUrl));
-                                    mContext.startActivity(intent);
-                                } catch(Exception ignored){}
-                            }
-                        });
+                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(currentUrl));
+                        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        mContext.startActivity(intent);
+                        Toast.makeText(mContext, "Opening Pharmly download in browser...", Toast.LENGTH_SHORT).show();
+                    } catch (Exception e) {
+                        Toast.makeText(mContext, "Unable to launch browser download", Toast.LENGTH_SHORT).show();
                     }
                 }
-            }).start();
+            });
         }
 
         @JavascriptInterface
         public void promptInstallApk() {
-            if (downloadedApkFile != null && downloadedApkFile.exists()) {
-                installApkFileDirect(mContext, downloadedApkFile);
-            }
+            downloadAndInstallApk("https://github.com/Swelo-ui/pharmabharat-scraper/releases/latest/download/Pharmly.apk");
         }
 
         @JavascriptInterface
@@ -670,17 +533,12 @@ public class MainActivity extends Activity {
                 SharedPreferences prefs = mContext.getSharedPreferences("pharmly_device_prefs", Context.MODE_PRIVATE);
                 String id = prefs.getString("unique_device_id", null);
                 if (id == null || id.isEmpty()) {
-                    String androidId = android.provider.Settings.Secure.getString(mContext.getContentResolver(), android.provider.Settings.Secure.ANDROID_ID);
-                    if (androidId != null && !androidId.isEmpty() && !"9774d56d682e549c".equals(androidId)) {
-                        id = "and-" + androidId;
-                    } else {
-                        id = "dev-" + java.util.UUID.randomUUID().toString().substring(0, 12);
-                    }
+                    id = "phm-" + java.util.UUID.randomUUID().toString();
                     prefs.edit().putString("unique_device_id", id).apply();
                 }
                 return id;
             } catch (Exception e) {
-                return "dev-unknown";
+                return "phm-" + java.util.UUID.randomUUID().toString();
             }
         }
 

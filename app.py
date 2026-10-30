@@ -9,6 +9,10 @@ import db
 import scraper
 
 import os
+import hmac
+import hashlib
+
+ADMIN_PASSWORD = os.getenv("PHARMLY_ADMIN_PASS", "swelo")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__, template_folder=os.path.join(BASE_DIR, "templates"))
@@ -66,7 +70,7 @@ def api_push_broadcast():
     global BROADCAST_NOTIFICATION
     if request.method == "POST":
         auth_key = request.headers.get("X-Admin-Secret") or request.args.get("key") or ""
-        if auth_key.strip().lower() != "swelo":
+        if not hmac.compare_digest(auth_key.strip(), ADMIN_PASSWORD):
             return jsonify({"error": "Unauthorized. Admin secret required."}), 403
         data = request.get_json() or {}
         BROADCAST_NOTIFICATION = {
@@ -104,8 +108,8 @@ def api_telegram_scrape():
 def api_app_version():
     # ✅ BANDWIDTH FIX: Use GitHub Releases URL (CDN-served), not raw/main (counts as Render egress via Android app).
     resp = jsonify({
-        "version_code": 16,
-        "version_name": "3.7.5",
+        "version_code": 17,
+        "version_name": "3.8.0",
         "download_url": "https://github.com/Swelo-ui/pharmabharat-scraper/releases/latest/download/Pharmly.apk",
         "changelog": [
             "🚀 Official Version 3.7.5 Ad-Free & Full Details Release!",
@@ -273,8 +277,8 @@ def api_sources():
 @app.route("/api/export")
 def api_export():
     key = request.args.get("key") or request.args.get("password") or ""
-    if key.strip().lower() != "swelo":
-        return jsonify({"error": "Unauthorized. Admin password 'swelo' is required to export data."}), 403
+    if not hmac.compare_digest(key.strip(), ADMIN_PASSWORD):
+        return jsonify({"error": "Unauthorized. Valid administrator key required."}), 403
 
     fmt = request.args.get("format", "csv").lower()
     category = request.args.get("category") or None
@@ -471,10 +475,24 @@ start_background_scheduler()
 
 # ─── Device Telemetry, Live Tracking & Access Control Console ───────────────
 from location_utils import lookup_ip_geo
-import hmac
-import hashlib
 
-ADMIN_PASSWORD = os.getenv("PHARMLY_ADMIN_PASS", "PharmlyAdmin#2026")
+# In-memory brute-force protection
+LOGIN_ATTEMPTS = {}
+MAX_LOGIN_ATTEMPTS = 5
+LOCKOUT_WINDOW_SECONDS = 300  # 5 minutes
+
+def _check_login_rate_limit(ip):
+    now = time.time()
+    attempts = LOGIN_ATTEMPTS.get(ip, [])
+    recent = [t for t in attempts if now - t < LOCKOUT_WINDOW_SECONDS]
+    LOGIN_ATTEMPTS[ip] = recent
+    return len(recent) >= MAX_LOGIN_ATTEMPTS
+
+def _record_failed_login(ip):
+    now = time.time()
+    attempts = LOGIN_ATTEMPTS.get(ip, [])
+    attempts.append(now)
+    LOGIN_ATTEMPTS[ip] = attempts
 
 def _generate_admin_token():
     secret = app.secret_key or b"pharmly_secret_telemetry_key_2026"
@@ -488,14 +506,11 @@ def _is_admin_authenticated(req):
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ", 1)[1].strip()
     if not token:
-        token = req.args.get("token") or req.args.get("key")
-    
+        token = req.headers.get("X-Admin-Token")
+    if not token:
+        return False
     expected_token = _generate_admin_token()
-    if token == expected_token:
-        return True
-    if token and token == ADMIN_PASSWORD:
-        return True
-    return False
+    return hmac.compare_digest(token, expected_token)
 
 @app.route("/api/telemetry/heartbeat", methods=["POST"])
 def api_telemetry_heartbeat():
@@ -560,10 +575,23 @@ def admin_devices_page():
 
 @app.route("/admin/api/login", methods=["POST"])
 def admin_api_login():
+    ip = request.headers.get("X-Forwarded-For", request.remote_addr or "")
+    if ip:
+        ip = ip.split(",")[0].strip()
+
+    if _check_login_rate_limit(ip):
+        return jsonify({
+            "status": "error",
+            "message": "Too many failed attempts. Console locked for 5 minutes."
+        }), 429
+
     data = request.get_json(silent=True) or {}
-    pwd = data.get("password") or ""
-    if pwd == ADMIN_PASSWORD:
+    pwd = (data.get("password") or "").strip()
+    if pwd and hmac.compare_digest(pwd, ADMIN_PASSWORD):
+        LOGIN_ATTEMPTS.pop(ip, None)
         return jsonify({"status": "ok", "token": _generate_admin_token()})
+
+    _record_failed_login(ip)
     return jsonify({"status": "error", "message": "Incorrect passcode"}), 401
 
 @app.route("/admin/api/stats")

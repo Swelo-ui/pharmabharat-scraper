@@ -10,8 +10,8 @@ android {
         applicationId "com.pharmabharat.app"
         minSdk 24
         targetSdk 34
-        versionCode 16
-        versionName "3.7.5"
+        versionCode 17
+        versionName "3.8.0"
     }
 
     signingConfigs {
@@ -20,8 +20,11 @@ android {
             storePassword 'pharmly123'
             keyAlias 'pharmly'
             keyPassword 'pharmly123'
+            enableV1Signing = true
             v1SigningEnabled true
             v2SigningEnabled true
+            enableV3Signing = true
+            enableV4Signing = true
         }
     }
 
