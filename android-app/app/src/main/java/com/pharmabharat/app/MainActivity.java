@@ -88,18 +88,32 @@ public class MainActivity extends Activity {
                     webView.evaluateJavascript("if(typeof triggerInAppUpdate === 'function') triggerInAppUpdate(); else if(typeof checkAppUpdate === 'function') checkAppUpdate();", null);
                 }
             } else {
-                String fullTarget;
-                if (targetUrl.startsWith("http://") || targetUrl.startsWith("https://")) {
-                    fullTarget = targetUrl;
-                } else if (targetUrl.startsWith("?")) {
-                    fullTarget = TARGET_URL + "/" + targetUrl;
-                } else if (targetUrl.startsWith("/")) {
-                    fullTarget = TARGET_URL + targetUrl;
-                } else {
-                    fullTarget = TARGET_URL + "/?job=" + targetUrl;
+                String slug = null;
+                if (targetUrl.startsWith("?job=")) {
+                    slug = targetUrl.substring(5).trim();
+                } else if (targetUrl.startsWith("/?job=")) {
+                    slug = targetUrl.substring(6).trim();
+                } else if (!targetUrl.contains("/") && !targetUrl.contains("?") && !targetUrl.contains("http")) {
+                    slug = targetUrl.trim();
                 }
-                if (webView != null) {
-                    webView.loadUrl(fullTarget);
+
+                if (slug != null && !slug.isEmpty() && webView != null) {
+                    String js = "if (typeof openJobModal === 'function') { openJobModal('" + slug + "'); } else { window.location.href = '" + TARGET_URL + "/?job=" + slug + "'; }";
+                    webView.evaluateJavascript(js, null);
+                } else {
+                    String fullTarget;
+                    if (targetUrl.startsWith("http://") || targetUrl.startsWith("https://")) {
+                        fullTarget = targetUrl;
+                    } else if (targetUrl.startsWith("?")) {
+                        fullTarget = TARGET_URL + "/" + targetUrl;
+                    } else if (targetUrl.startsWith("/")) {
+                        fullTarget = TARGET_URL + targetUrl;
+                    } else {
+                        fullTarget = TARGET_URL + "/?job=" + targetUrl;
+                    }
+                    if (webView != null) {
+                        webView.loadUrl(fullTarget);
+                    }
                 }
             }
         }
@@ -353,10 +367,26 @@ public class MainActivity extends Activity {
                 }
             }
 
+            private int serverErrorRetryCount = 0;
+
             @Override
             public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse errorResponse) {
                 if (request.isForMainFrame() && errorResponse != null) {
                     int statusCode = errorResponse.getStatusCode();
+                    if (statusCode == 502 || statusCode == 503 || statusCode == 504) {
+                        if (serverErrorRetryCount < 2) {
+                            serverErrorRetryCount++;
+                            view.postDelayed(new Runnable() {
+                                @Override
+                                public void run() {
+                                    if (webView != null && isNetworkAvailable()) {
+                                        webView.reload();
+                                    }
+                                }
+                            }, 3500);
+                            return;
+                        }
+                    }
                     if (statusCode >= 400) {
                         showErrorScreen();
                     }
@@ -430,7 +460,19 @@ public class MainActivity extends Activity {
                 public void run() {
                     try {
                         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-                            getWindow().setStatusBarColor(android.graphics.Color.parseColor(hexColor));
+                            int color = android.graphics.Color.parseColor(hexColor);
+                            getWindow().setStatusBarColor(color);
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                                double darkness = 1 - (0.299 * android.graphics.Color.red(color) + 0.587 * android.graphics.Color.green(color) + 0.114 * android.graphics.Color.blue(color)) / 255;
+                                View decorView = getWindow().getDecorView();
+                                int flags = decorView.getSystemUiVisibility();
+                                if (darkness < 0.5) {
+                                    flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+                                } else {
+                                    flags &= ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+                                }
+                                decorView.setSystemUiVisibility(flags);
+                            }
                         }
                     } catch (Exception ignored) {}
                 }
@@ -455,10 +497,28 @@ public class MainActivity extends Activity {
         public void downloadFile(String fileUrl, String fileName) {
             try {
                 String fullUrl = fileUrl.startsWith("http") ? fileUrl : TARGET_URL + fileUrl;
-                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(fullUrl));
-                mContext.startActivity(intent);
+                android.app.DownloadManager dm = (android.app.DownloadManager) mContext.getSystemService(Context.DOWNLOAD_SERVICE);
+                if (dm != null) {
+                    android.app.DownloadManager.Request req = new android.app.DownloadManager.Request(Uri.parse(fullUrl));
+                    req.setAllowedNetworkTypes(android.app.DownloadManager.Request.NETWORK_WIFI | android.app.DownloadManager.Request.NETWORK_MOBILE);
+                    req.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                    String safeName = (fileName != null && !fileName.trim().isEmpty()) ? fileName.trim() : "Pharmly_Flyer.jpg";
+                    req.setTitle(safeName);
+                    req.setDescription("Downloading recruitment flyer");
+                    req.setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, safeName);
+                    dm.enqueue(req);
+                    Toast.makeText(mContext, "Downloading flyer to Downloads...", Toast.LENGTH_SHORT).show();
+                    return;
+                }
             } catch (Exception e) {
                 e.printStackTrace();
+            }
+            try {
+                String fullUrl = fileUrl.startsWith("http") ? fileUrl : TARGET_URL + fileUrl;
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(fullUrl));
+                mContext.startActivity(intent);
+            } catch (Exception ex) {
+                ex.printStackTrace();
             }
         }
 

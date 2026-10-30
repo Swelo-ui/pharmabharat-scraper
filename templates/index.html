@@ -2116,12 +2116,16 @@ function shareJobBySlug(slug, e) {
   const phone = (job && job.phone) ? job.phone.trim() : "";
   const shareUrl = (job && job.url) ? job.url : window.location.href;
 
-  let fullMsg = `Pharmly Job Alert:\n\nPosition: ${title}\n`;
-  if (company) fullMsg += `Company: ${company}\n`;
-  if (exp) fullMsg += `Experience: ${exp}\n`;
-  if (loc) fullMsg += `Location: ${loc}\n`;
-  if (email || phone) fullMsg += `Contact: ${[email, phone].filter(Boolean).join(" / ")}\n`;
-  fullMsg += `\nApply / View Details Here:\n${shareUrl}`;
+  let fullMsg = `💊 Pharmly Job Alert:\n\n📋 Position: ${title}\n`;
+  if (company) fullMsg += `🏢 Company: ${company}\n`;
+  if (exp) fullMsg += `💼 Experience: ${exp}\n`;
+  if (loc) fullMsg += `📍 Location: ${loc}\n`;
+  if (email || phone) fullMsg += `📞 Contact: ${[email, phone].filter(Boolean).join(" / ")}\n`;
+  if (job && job.apply_link) {
+    fullMsg += `\n🚀 Direct Official Application Link:\n${job.apply_link}\n`;
+  }
+  const webTarget = (job && job.slug) ? `https://pharmabharat-scraper-dic1.onrender.com/?job=${encodeURIComponent(job.slug)}` : shareUrl;
+  fullMsg += `\n📲 Open & Apply on Pharmly:\n${webTarget}`;
 
   // 1. Android Native Share Sheet
   if (window.AndroidNative && window.AndroidNative.shareText) {
@@ -2603,8 +2607,8 @@ function createJobCardInnerHtml(job) {
             <i data-lucide="share-2" style="width:14px;height:14px;"></i> Share
           </button>
         </div>
-        <a class="btn-action btn-apply" href="${job.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">
-          Apply <i data-lucide="external-link" style="width:12px;height:12px;"></i>
+        <a class="btn-action btn-apply" href="${job.apply_link || job.url}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">
+          ${job.apply_link ? 'Apply Directly' : 'Apply'} <i data-lucide="external-link" style="width:12px;height:12px;"></i>
         </a>
       </div>
     </div>`;
@@ -2859,6 +2863,8 @@ document.getElementById("close-modal-btn").addEventListener("click", () => {
   closeAllModals();
 });
 
+let isPoppingModalState = false;
+
 // Centralized modal close — always restores swipe refresh & pointer events
 function closeAllModals() {
   document.querySelectorAll(".modal-overlay.open, .bottom-sheet-modal.open").forEach(m => m.classList.remove("open"));
@@ -2869,6 +2875,12 @@ function closeAllModals() {
   }
   document.body.classList.remove("modal-open");
   setNativeSwipeRefresh(true);
+
+  if (!isPoppingModalState && window.history.state && window.history.state.modalOpen) {
+    try {
+      window.history.back();
+    } catch(e) {}
+  }
 }
 
 // ── Fullscreen HD Image Lightbox Modal with Pinch-Zoom & Pan ──
@@ -3176,10 +3188,12 @@ function openModalWithHistory(modalId) {
 }
 
 window.addEventListener("popstate", () => {
+  isPoppingModalState = true;
   const openModals = document.querySelectorAll(".modal-overlay.open, .bottom-sheet-modal.open");
   if (openModals.length > 0) {
     closeAllModals();
   }
+  isPoppingModalState = false;
 });
 
 // WATCHDOG: every 3 seconds, if NO modal is visually open but swipe is locked → auto-unlock
