@@ -3879,7 +3879,7 @@ function detectAccurateLocation() {
         if (parts[0] && parts[0].trim()) {
           cachedDeviceGeo = {
             city: parts[0].trim(),
-            region: parts[1] ? parts[1].trim() : "Madhya Pradesh"
+            region: parts[1] ? parts[1].trim() : ""
           };
           localStorage.setItem("pharmly_device_geo", JSON.stringify(cachedDeviceGeo));
           sendDeviceHeartbeat();
@@ -3898,7 +3898,7 @@ function detectAccurateLocation() {
           .then(r => r.json())
           .then(data => {
             const city = data.city || data.locality || data.principalSubdivision;
-            const region = data.principalSubdivision || "Madhya Pradesh";
+            const region = data.principalSubdivision || "";
             if (city) {
               cachedDeviceGeo = { city: city, region: region, lat: lat, lon: lon };
               localStorage.setItem("pharmly_device_geo", JSON.stringify(cachedDeviceGeo));
