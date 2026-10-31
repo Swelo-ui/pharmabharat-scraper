@@ -612,8 +612,20 @@ public class MainActivity extends Activity {
                 android.content.pm.PackageInfo pInfo = mContext.getPackageManager().getPackageInfo(mContext.getPackageName(), 0);
                 return pInfo.versionName;
             } catch (Exception e) {
-                return "3.7.5";
+                return "3.8.0";
             }
+        }
+
+        @JavascriptInterface
+        public boolean isTestLab() {
+            try {
+                String testLab = android.provider.Settings.System.getString(mContext.getContentResolver(), "firebase.test.lab");
+                if ("true".equalsIgnoreCase(testLab)) return true;
+            } catch (Exception ignored) {}
+            try {
+                if ("true".equalsIgnoreCase(System.getProperty("firebase.test.lab"))) return true;
+            } catch (Exception ignored) {}
+            return false;
         }
 
     }

@@ -512,6 +512,37 @@ def _is_admin_authenticated(req):
     expected_token = _generate_admin_token()
     return hmac.compare_digest(token, expected_token)
 
+BOT_USER_AGENTS = (
+    "googlebot", "bingbot", "yandex", "baiduspider", "duckduckbot",
+    "slurp", "headless", "lighthouse", "crawler", "spider", "crawl",
+    "google-inspectiontool", "storebot", "mediapartners", "adsbot",
+    "facebookexternalhit", "twitterbot", "telegrambot", "discordbot",
+    "curl", "wget", "python-requests", "aiohttp", "urllib", "uptimerobot",
+    "pingdom", "render", "bytespider", "petalbot", "ahrefsbot", "semrushbot"
+)
+
+def is_bot_or_test_device(req, data, ip):
+    ua = (req.headers.get("User-Agent") or "").lower()
+    if any(k in ua for k in BOT_USER_AGENTS):
+        return True, "Bot/Crawler User-Agent"
+
+    if ip:
+        if ip.startswith("66.249.") or ip.startswith("66.102."):
+            return True, "Googlebot / Google Proxy IP"
+        if ip.startswith("64.233.") or ip.startswith("72.14.") or ip.startswith("74.125."):
+            return True, "Google Datacenter IP"
+
+    if data.get("is_test_lab") or data.get("is_automated"):
+        return True, "Firebase Test Lab Flag"
+
+    dev_name = (data.get("device_name") or "").lower().replace(" ", "")
+    city = (data.get("city") or "").lower()
+    if "oneplus8pro" in dev_name and ("mountain view" in city or (ip and ip.startswith("66."))):
+        return True, "Google Cloud OnePlus8Pro Test Runner"
+
+    return False, None
+
+
 @app.route("/api/telemetry/heartbeat", methods=["POST"])
 def api_telemetry_heartbeat():
     data = request.get_json(silent=True) or {}
@@ -519,18 +550,29 @@ def api_telemetry_heartbeat():
     if not device_id:
         return jsonify({"status": "error", "message": "Missing device_id"}), 400
 
-    device_name = data.get("device_name")
-    os_version = data.get("os_version")
-    app_version = data.get("app_version")
-    session_id = data.get("session_id")
-    duration_sec = data.get("duration_sec", 0)
-
     # Extract client IP
     ip = request.headers.get("X-Forwarded-For")
     if ip:
         ip = ip.split(",")[0].strip()
     else:
         ip = request.remote_addr or ""
+
+    # Bot, Crawler & Firebase Test Lab Shield (Prevent fake devices from polluting console)
+    is_bot, bot_reason = is_bot_or_test_device(request, data, ip)
+    if is_bot:
+        return jsonify({
+            "status": "ignored",
+            "restricted": False,
+            "message": None,
+            "bot_detected": True,
+            "reason": bot_reason
+        })
+
+    device_name = data.get("device_name")
+    os_version = data.get("os_version")
+    app_version = data.get("app_version")
+    session_id = data.get("session_id")
+    duration_sec = data.get("duration_sec", 0)
 
     # Geo lookup: prioritize client-detected GPS/district city, fallback to IP gateway
     city = data.get("city")
@@ -630,6 +672,25 @@ def admin_api_toggle_restriction():
     reason = data.get("reason")
     ok = db.set_device_restriction(device_id, restricted, reason)
     return jsonify({"status": "ok" if ok else "not_found", "device_id": device_id, "restricted": restricted})
+
+
+@app.route("/admin/api/device/delete", methods=["POST"])
+def admin_api_device_delete():
+    if not _is_admin_authenticated(request):
+        return jsonify({"error": "Unauthorized"}), 401
+    data = request.get_json(silent=True) or {}
+    device_id = data.get("device_id")
+    if not device_id:
+        return jsonify({"error": "Missing device_id"}), 400
+    ok = db.delete_device(device_id)
+    return jsonify({"status": "ok" if ok else "not_found", "device_id": device_id})
+
+@app.route("/admin/api/device/purge-bots", methods=["POST"])
+def admin_api_purge_bots():
+    if not _is_admin_authenticated(request):
+        return jsonify({"error": "Unauthorized"}), 401
+    count = db.purge_bot_devices()
+    return jsonify({"status": "ok", "purged_count": count})
 
 
 if __name__ == "__main__":

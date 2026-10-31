@@ -3914,6 +3914,24 @@ function detectAccurateLocation() {
 }
 
 function sendDeviceHeartbeat() {
+  // 1. Skip automated bot/crawler environments
+  if (navigator.webdriver) return;
+
+  const ua = (navigator.userAgent || '').toLowerCase();
+  const botKeywords = [
+    'googlebot', 'bingbot', 'yandex', 'baiduspider', 'duckduckbot',
+    'slurp', 'headless', 'lighthouse', 'crawler', 'spider', 'crawl',
+    'google-inspectiontool', 'storebot', 'mediapartners', 'adsbot'
+  ];
+  if (botKeywords.some(k => ua.includes(k))) return;
+
+  // 2. Skip Firebase Test Lab / Automated Pre-Launch Report crawlers
+  if (window.AndroidNative && typeof window.AndroidNative.isTestLab === 'function') {
+    try {
+      if (window.AndroidNative.isTestLab()) return;
+    } catch(e) {}
+  }
+
   const devId = getPharmlyDeviceId();
   const now = Math.floor(Date.now() / 1000);
   const durSec = sessionStartTime ? Math.max(10, now - sessionStartTime) : 10;

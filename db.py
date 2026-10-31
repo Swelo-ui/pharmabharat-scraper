@@ -450,6 +450,7 @@ def init_db():
     seed_from_json()
     sanitize_fresher_tags()
     backfill_apply_links()
+    purge_bot_devices()
 
 
 # ─── GitHub Seed Sync (Bandwidth-Safe) ────────────────────────────────────────
@@ -1451,6 +1452,45 @@ def set_device_restriction(device_id: str, is_restricted: bool, reason: str = No
             (1 if is_restricted else 0, msg if is_restricted else None, device_id)
         )
         return res.rowcount > 0
+
+
+def delete_device(device_id: str) -> bool:
+    """Permanently delete a device and its 24h retention session history."""
+    if not device_id:
+        return False
+    with get_conn() as conn:
+        conn.execute("DELETE FROM device_sessions WHERE device_id = ?", (device_id,))
+        res = conn.execute("DELETE FROM device_analytics WHERE device_id = ?", (device_id,))
+        log.info("delete_device: deleted device %s", device_id)
+        return res.rowcount > 0
+
+
+def purge_bot_devices() -> int:
+    """
+    Purge phantom bot/crawler devices (Googlebot, Mountain View datacenter proxies,
+    and Firebase Test Lab automated OnePlus8Pro test runners) from analytics database.
+    """
+    with get_conn() as conn:
+        rows = conn.execute("""
+            SELECT device_id FROM device_analytics 
+            WHERE city = 'Mountain View' 
+               OR ip_address LIKE '66.249.%' 
+               OR ip_address LIKE '66.102.%'
+               OR ip_address LIKE '64.233.%'
+               OR ip_address LIKE '72.14.%'
+               OR ip_address LIKE '74.125.%'
+               OR device_name LIKE '%Googlebot%'
+               OR (device_name LIKE '%OnePlus8Pro%' AND (city = 'Mountain View' OR ip_address LIKE '66.%' OR country = 'United States'))
+        """).fetchall()
+        bot_ids = [r["device_id"] for r in rows]
+        if not bot_ids:
+            return 0
+
+        placeholders = ",".join("?" for _ in bot_ids)
+        conn.execute(f"DELETE FROM device_sessions WHERE device_id IN ({placeholders})", bot_ids)
+        res = conn.execute(f"DELETE FROM device_analytics WHERE device_id IN ({placeholders})", bot_ids)
+        log.info("purge_bot_devices: Purged %d phantom bot/test devices from database.", res.rowcount)
+        return res.rowcount
 
 
 def get_device_analytics_stats() -> dict:
